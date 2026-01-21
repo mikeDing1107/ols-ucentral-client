@@ -10,24 +10,33 @@ The framework uses the **uCentral schema as the single source of truth** for pro
 
 ### Key Components
 
-1. **Schema Files** - JSON/YAML schema definitions from ols-ucentral-schema repository
-2. **Property Databases** - Generated from schema, tracking implementation status:
-   - `property-database-base.c` - Proto.c parsing (102 found, 296 not implemented)
-   - `property-database-platform-brcm-sonic.c` - Platform application (141 found, 257 not implemented)
+1. **Schema Files** - JSON schema definition from ols-ucentral-schema repository
+   - `config-samples/ucentral.schema.pretty.json` - Included in repository
+
+2. **Property Databases** - Separate C files, auto-generated from schema:
+   - `tests/config-parser/property-database-base.c` - Proto.c parsing (102 found, 296 not implemented)
+   - `tests/config-parser/property-database-platform-brcm-sonic.c` - Platform application (141 found, 257 not implemented)
+
+3. **Platform Mocks** - Hardware abstraction layer mocks for testing:
+   - `tests/config-parser/platform-mocks/brcm-sonic.c` - gNMI/gNOI mock implementations
+   - `tests/config-parser/platform-mocks/example-platform.c` - Template for new platforms
 
 ### Schema-Based Workflow
 
 ```
-ols-ucentral-schema (YAML)
-    ↓
-fetch-schema.sh → ols-ucentral-schema/
+config-samples/ucentral.schema.pretty.json (Included)
     ↓
 extract-schema-properties.py → 398 properties
     ↓
-generate-database-from-schema.py → base database
-generate-platform-database-from-schema.py → platform database
-    ↓
-Property databases with line numbers
+    ├── generate-database-from-schema.py
+    │   ↓
+    │   tests/config-parser/property-database-base.c
+    │   (proto.c parsing: 102 implemented, 296 not yet)
+    │
+    └── generate-platform-database-from-schema.py
+        ↓
+        tests/config-parser/property-database-platform-brcm-sonic.c
+        (plat-gnma.c application: 141 implemented, 257 not yet)
 ```
 
 ## Table of Contents

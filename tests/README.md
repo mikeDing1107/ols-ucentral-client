@@ -42,12 +42,19 @@ This testing framework includes multiple documentation files, each serving a spe
 
 4. **[TEST_CONFIG_PARSER_DESIGN.md](../TEST_CONFIG_PARSER_DESIGN.md)** - Test framework architecture
    - Multi-layer validation design
-   - Property metadata system (560+ entries)
+   - Property metadata system (398 schema properties)
    - Property inspection engine
    - Test execution flow diagrams
    - Data structures and algorithms
    - Output format implementations
    - **Start here** for understanding the test framework internals
+
+5. **[ADDING_NEW_PLATFORM.md](ADDING_NEW_PLATFORM.md)** - Platform integration guide
+   - Platform mock creation workflow
+   - Property database generation for platforms
+   - Integration testing approach
+   - Troubleshooting platform builds
+   - **Start here** when adding new platform support
 
 ### Supporting Documentation
 
@@ -59,18 +66,20 @@ The testing framework supports two modes:
 
 **Stub Mode (Default - Fast)**
 - Tests proto.c parsing only
-- Uses simple platform stubs (test-stubs.c)
-- Shows base properties only (proto.c)
+- Uses simple platform stubs (test-stubs.c) that return success
+- Uses base property database (property-database-base.c)
+- Shows proto.c source locations with line numbers
 - Fast execution (~30 seconds)
-- Use for: Quick validation, CI/CD pipelines
+- Use for: Quick validation, CI/CD pipelines, parser development
 
 **Platform Mode (Integration)**
 - Tests proto.c + platform implementation (plat-gnma.c)
-- Uses platform code with hardware mocks
-- Shows base AND platform properties (proto.c → plat-gnma.c)
-- Tracks hardware application functions called
+- Uses platform code with hardware mocks (platform-mocks/brcm-sonic.c)
+- Uses both base AND platform property databases
+- Shows proto.c parsing + platform hardware application
+- Tracks gNMI/gNOI calls with mock implementations
 - Slower execution (~45 seconds)
-- Use for: Platform-specific validation, integration testing
+- Use for: Platform-specific validation, integration testing, pre-release testing
 
 ### Running Tests
 
@@ -142,15 +151,26 @@ make test-config-json USE_PLATFORM=brcm-sonic
 ### Key Files
 
 **Test Implementation:**
-- `tests/config-parser/test-config-parser.c` (3445 lines) - Parser test framework with property tracking
-- `tests/config-parser/test-stubs.c` (214 lines) - Platform function stubs for testing
-- `tests/schema/validate-schema.py` (649 lines) - Standalone schema validator with undefined property detection
+- `tests/config-parser/test-config-parser.c` - Parser test framework with property tracking
+- `tests/config-parser/test-stubs.c` - Simple platform function stubs for stub mode
+- `tests/config-parser/platform-mocks/brcm-sonic.c` - gNMI/gNOI mocks for platform mode
+- `tests/config-parser/platform-mocks/example-platform.c` - Template for new platforms
+- `tests/schema/validate-schema.py` - Standalone schema validator
 - `tests/config-parser/config-parser.h` - Test header exposing cfg_parse()
 
+**Property Databases (Auto-generated from schema):**
+- `tests/config-parser/property-database-base.c` - Base properties (proto.c parsing, 398 entries)
+- `tests/config-parser/property-database-platform-brcm-sonic.c` - Platform properties (hardware application, 398 entries)
+- `tests/config-parser/property-database-platform-example.c` - Example platform template
+
+**Generation Tools:**
+- `tests/tools/extract-schema-properties.py` - Extracts all properties from schema
+- `tests/tools/generate-database-from-schema.py` - Generates base property database
+- `tests/tools/generate-platform-database-from-schema.py` - Generates platform property database
+
 **Configuration Files:**
-- `config-samples/ucentral.schema.pretty.json` - uCentral JSON schema (human-readable)
-- `config-samples/ols.ucentral.schema.json` - uCentral JSON schema (compact)
-- `config-samples/*.json` - Test configuration files (37+ configs)
+- `config-samples/ucentral.schema.pretty.json` - uCentral JSON schema (human-readable, included)
+- `config-samples/*.json` - Test configuration files (25+ configs)
 - `config-samples/*invalid*.json` - Negative test cases
 
 **Build System:**
@@ -180,11 +200,14 @@ make test-config-json USE_PLATFORM=brcm-sonic
 - Hardware constraint validation
 
 ### Property Tracking System
-- Database of all schema properties and their implementation status (398 canonical properties)
-- Tracks which properties are parsed by which functions
-- Identifies unimplemented features
-- Status classification: CONFIGURED, IGNORED, SYSTEM, INVALID, Unknown
-- Property usage reports across all test configurations
+- **Schema-based property databases** - Single source of truth (398 canonical properties from uCentral schema)
+- **Separate database files** - Base (proto.c) and platform-specific (plat-*.c)
+- **Auto-generated from schema** - Ensures complete coverage of all schema properties
+- **Line number tracking** - Shows where properties are parsed (line_number=0 = not yet implemented)
+- **Dual-layer tracking** - Base database tracks JSON parsing, platform database tracks hardware application
+- **Status classification** - CONFIGURED, IGNORED, SYSTEM, INVALID, Unknown
+- **Property usage reports** - Shows implementation status across all test configurations
+- **Source location mapping** - File, function, and line number for each implemented property
 
 ### Two-Layer Validation Strategy
 
@@ -337,27 +360,83 @@ test-configurations:
 
 ## Property Database Management
 
-The property database is a critical component tracking which JSON properties are parsed by which functions.
+The property databases are **automatically generated from the uCentral schema**, ensuring complete coverage and accurate tracking.
+
+### Database Architecture
+
+**Two separate database files:**
+
+1. **Base Database** (`property-database-base.c`):
+   - Tracks proto.c parsing (where JSON properties are read)
+   - Generated from proto.c source code
+   - 398 schema properties (102 implemented, 296 not yet)
+   - Shows line numbers where properties are parsed
+
+2. **Platform Database** (`property-database-platform-*.c`):
+   - Tracks platform hardware application (where config is applied to device)
+   - Generated from platform source code (plat-gnma.c, etc.)
+   - 398 schema properties (141 applied, 257 not yet)
+   - Shows line numbers where properties are applied to hardware
 
 ### Database Structure
 ```c
-static struct property_info properties[] = {
-    {
-        .path = "interfaces.ethernet.enabled",
-        .parser_function = "cfg_ethernet_parse()",
-        .status = PROP_CONFIGURED,
-        .notes = "Enable/disable ethernet interface"
-    },
-    // ... entries for all 398 schema properties ...
+// property-database-base.c
+static const struct property_metadata base_property_database[] = {
+    {"ethernet[].speed", PROP_CONFIGURED, "proto.c", "cfg_ethernet_parse", 1135, "Parsed in cfg_ethernet_parse()"},
+    {"ethernet[].duplex", PROP_CONFIGURED, "proto.c", "cfg_ethernet_parse", 1134, "Parsed in cfg_ethernet_parse()"},
+    {"ethernet[].lacp-config.lacp-enable", PROP_CONFIGURED, "proto.c", "NULL", 0, "Not yet implemented"},
+    // ... all 398 schema properties ...
+    {NULL, PROP_CONFIGURED, NULL, NULL, 0, NULL}  /* Sentinel */
+};
+
+// property-database-platform-brcm-sonic.c
+static const struct property_metadata platform_property_database_brcm_sonic[] = {
+    {"ethernet[].speed", PROP_CONFIGURED, "plat-gnma.c", "plat_port_speed_set", 73, "Applied in plat_port_speed_set()"},
+    {"ethernet[].duplex", PROP_CONFIGURED, "plat-gnma.c", "plat_port_duplex_set", 74, "Applied in plat_port_duplex_set()"},
+    // ... all 398 schema properties ...
+    {NULL, PROP_CONFIGURED, NULL, NULL, 0, NULL}  /* Sentinel */
 };
 ```
 
-### Key Rules
-1. **Only track properties for functions that exist in this repository's proto.c**
-2. **Remove entries when parser functions are removed**
-3. **Add entries immediately when adding new parser functions**
-4. **Use accurate function names** - different platforms may use different names
-5. **Properties not in database show as "Unknown"** - this is correct for platform-specific features
+### Regenerating Databases
+
+**When to regenerate:**
+- After modifying proto.c parsing code
+- After modifying platform code (plat-*.c)
+- After schema updates
+- Line numbers have changed significantly
+
+**How to regenerate** (see MAINTENANCE.md for complete procedures):
+```bash
+cd tests/tools
+
+# Extract properties from schema
+python3 extract-schema-properties.py ../../config-samples/ucentral.schema.pretty.json \
+    2>/dev/null > /tmp/schema-props.txt
+
+# Generate base database (proto.c)
+python3 generate-database-from-schema.py \
+    ../../src/ucentral-client/proto.c \
+    /tmp/schema-props.txt \
+    /tmp/base-db.c
+
+# Generate platform database (plat-gnma.c)
+python3 generate-platform-database-from-schema.py \
+    ../../src/ucentral-client/platform/brcm-sonic/plat-gnma.c \
+    /tmp/schema-props.txt \
+    /tmp/platform-db.c
+
+# Install
+cp /tmp/base-db.c ../config-parser/property-database-base.c
+cp /tmp/platform-db.c ../config-parser/property-database-platform-brcm-sonic.c
+```
+
+### Key Advantages
+1. **Complete coverage** - All 398 schema properties tracked automatically
+2. **Shows gaps** - Properties with line_number=0 are not yet implemented
+3. **Accurate** - Line numbers show exact parsing/application locations
+4. **Maintainable** - Regenerate when code changes
+5. **Platform-specific** - Separate databases for base and platform code
 
 See MAINTENANCE.md for complete property database update procedures.
 

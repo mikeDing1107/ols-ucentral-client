@@ -369,9 +369,11 @@ Success! Your platform is now integrated into the test framework.
 
 The testing framework uses property databases to track where configuration properties are parsed in the codebase. This enables detailed test reports showing the exact source location (file, function, line number) for each property.
 
-Property tracking uses **separate databases**:
-- **Base database** (`property-database-base.c`): Tracks properties parsed in proto.c
-- **Platform database** (`property-database-platform-PLATFORM.c`): Tracks platform-specific properties
+Property tracking uses **separate database files**, auto-generated from schema:
+- **Base database** (`tests/config-parser/property-database-base.c`): Tracks JSON parsing in proto.c
+- **Platform database** (`tests/config-parser/property-database-platform-PLATFORM.c`): Tracks hardware application in platform code
+
+Both databases contain all 398 schema properties. Properties with line_number=0 are not yet implemented, while properties with line numbers show the exact source location.
 
 ### Database Architecture
 
@@ -399,18 +401,35 @@ Property tracking uses **separate databases**:
 ### How to Regenerate Databases
 
 ```bash
-# Regenerate base database (if you modified proto.c)
-cd tests/config-parser
-make regenerate-property-db
+cd tests/tools
 
-# Regenerate platform database (requires USE_PLATFORM)
-make regenerate-platform-property-db USE_PLATFORM=myvendor
+# Extract properties from schema (single source of truth)
+python3 extract-schema-properties.py ../../config-samples/ucentral.schema.pretty.json \
+    2>/dev/null > /tmp/schema-props.txt
+
+# Regenerate base database (proto.c parsing)
+python3 generate-database-from-schema.py \
+    ../../src/ucentral-client/proto.c \
+    /tmp/schema-props.txt \
+    /tmp/base-db.c
+
+cp /tmp/base-db.c ../config-parser/property-database-base.c
+
+# Regenerate platform database (platform hardware application)
+python3 generate-platform-database-from-schema.py \
+    ../../src/ucentral-client/platform/myvendor/plat-myvendor.c \
+    /tmp/schema-props.txt \
+    /tmp/platform-db.c
+
+cp /tmp/platform-db.c ../config-parser/property-database-platform-myvendor.c
 ```
 
 **What happens:**
-- Base: Extracts properties from proto.c and finds line numbers
-- Platform: Extracts properties from platform/myvendor/plat-*.c and finds line numbers
-- Generated database files are C arrays included by test-config-parser.c
+- **Schema extraction**: Extracts all 398 properties from uCentral schema (single source of truth)
+- **Base database generation**: Searches proto.c for cJSON parsing patterns, finds line numbers
+- **Platform database generation**: Searches platform code for config_*_apply() functions, finds line numbers
+- **Result**: Separate C files (`property-database-base.c`, `property-database-platform-myvendor.c`)
+- **Coverage**: All 398 schema properties tracked, with line numbers showing implementation status
 
 ### Test Reports with Property Tracking
 

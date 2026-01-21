@@ -25,23 +25,32 @@ The framework validates configurations through three complementary layers:
 ## 2. **Property Metadata System**
 
 ### Property Database Structure
+
+Property databases are **separate C files**, auto-generated from the uCentral schema:
+
 ```c
-struct property_metadata {
-    const char *path;              // JSON path: "ethernet[].speed"
-    enum property_status status;    // CONFIGURED, IGNORED, UNKNOWN, etc.
-    const char *source_file;        // Where processed: "proto.c"
-    const char *source_function;    // Function: "cfg_ethernet_parse"
-    int source_line;               // Line number in proto.c (if available)
-    const char *notes;             // Context/rationale
+// In property-database-base.c (proto.c parsing)
+static const struct property_metadata base_property_database[] = {
+    {"ethernet[].speed", PROP_CONFIGURED, "proto.c", "cfg_ethernet_parse", 1135, "Parsed in cfg_ethernet_parse()"},
+    {"ethernet[].duplex", PROP_CONFIGURED, "proto.c", "cfg_ethernet_parse", 1134, "Parsed in cfg_ethernet_parse()"},
+    {"ethernet[].lacp-config.lacp-enable", PROP_CONFIGURED, "proto.c", "NULL", 0, "Not yet implemented"},
+    // ... all 398 schema properties ...
+    {NULL, PROP_CONFIGURED, NULL, NULL, 0, NULL}  /* Sentinel */
+};
+
+// In property-database-platform-brcm-sonic.c (platform application)
+static const struct property_metadata platform_property_database_brcm_sonic[] = {
+    {"ethernet[].speed", PROP_CONFIGURED, "plat-gnma.c", "config_port_speed_apply", 73, "Applied in config_port_speed_apply()"},
+    // ... all 398 schema properties ...
+    {NULL, PROP_CONFIGURED, NULL, NULL, 0, NULL}  /* Sentinel */
 };
 ```
 
-**Database contains entries for all 398 schema properties** documenting:
-- Which properties are actively parsed (PROP_CONFIGURED with line numbers)
-- Which are not yet implemented (line_number=0)
-- Which are intentionally ignored (PROP_IGNORED)
-- Which need platform implementation (PROP_UNKNOWN)
-- Which are structural containers (PROP_SYSTEM)
+**Each database contains all 398 schema properties**, documenting:
+- Which properties are actively parsed/applied (line_number > 0)
+- Which are not yet implemented (line_number = 0)
+- Exact source file, function, and line number for implemented properties
+- Platform-specific tracking (base parses JSON, platform applies to hardware)
 
 ### Property Status Classification
 - **PROP_CONFIGURED**: Successfully processed by parser
@@ -293,7 +302,16 @@ The design elegantly separates concerns:
 4. **Validation layer** verifies specific features (optional validators)
 5. **Reporting layer** generates multiple output formats
 
-The property metadata database is the **crown jewel** - it documents the implementation status of all 398 schema properties, enabling automated detection of unimplemented features and validation of parser coverage.
+The property databases are the **crown jewel** - separate files auto-generated from the schema document the implementation status of all 398 schema properties across both JSON parsing (proto.c) and hardware application (platform code), enabling automated detection of unimplemented features and validation of complete configuration pipeline coverage.
+
+### Database Generation
+
+Property databases are automatically generated using:
+1. `tests/tools/extract-schema-properties.py` - Extracts all 398 properties from uCentral schema
+2. `tests/tools/generate-database-from-schema.py` - Generates base database (proto.c)
+3. `tests/tools/generate-platform-database-from-schema.py` - Generates platform databases (plat-*.c)
+
+See `tests/MAINTENANCE.md` for complete generation procedures.
 
 ## Related Documentation
 
