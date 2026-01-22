@@ -195,12 +195,15 @@ regenerate-property-db:
 	@echo "Regenerating base property database"
 	@echo "==========================================="
 	@echo "Source: ../../src/ucentral-client/proto.c"
-	@echo "Configs: ../../config-samples/cfg*.json"
+	@echo "Schema: ../../config-samples/ucentral.schema.pretty.json"
 	@echo "==========================================="
-	cd ../tools && python3 rebuild-property-database.py \
+	@cd ../tools && \
+	python3 extract-schema-properties.py ../../config-samples/ucentral.schema.pretty.json 2>/dev/null > /tmp/schema-props.txt && \
+	python3 generate-database-from-schema.py \
 		../../src/ucentral-client/proto.c \
-		../../config-samples/cfg*.json \
-		> ../config-parser/property-database-base.c
+		/tmp/schema-props.txt \
+		/tmp/base-db-new.c && \
+	cp /tmp/base-db-new.c ../config-parser/property-database-base.c
 	@echo "Base property database regenerated"
 	@echo "==========================================="
 
@@ -212,13 +215,16 @@ regenerate-platform-property-db:
 	@echo "Regenerating platform property database"
 	@echo "==========================================="
 	@echo "Platform: $(PLATFORM_NAME)"
-	@echo "Source:   ../../src/ucentral-client/platform/$(PLATFORM_NAME)/plat-*.c"
-	@echo "Configs:  ../../config-samples/cfg*.json"
+	@echo "Source:   ../../src/ucentral-client/platform/$(PLATFORM_NAME)/plat-gnma.c"
+	@echo "Schema:   ../../config-samples/ucentral.schema.pretty.json"
 	@echo "==========================================="
-	cd ../tools && python3 rebuild-property-database.py \
-		../../src/ucentral-client/platform/$(PLATFORM_NAME)/plat-*.c \
-		../../config-samples/cfg*.json \
-		> ../config-parser/property-database-platform-$(PLATFORM_NAME).c
+	@cd ../tools && \
+	python3 extract-schema-properties.py ../../config-samples/ucentral.schema.pretty.json 2>/dev/null > /tmp/schema-props.txt && \
+	python3 generate-platform-database-from-schema.py \
+		../../src/ucentral-client/platform/$(PLATFORM_NAME)/plat-gnma.c \
+		/tmp/schema-props.txt \
+		/tmp/platform-db-new.c && \
+	cp /tmp/platform-db-new.c ../config-parser/property-database-platform-$(PLATFORM_NAME).c
 	@echo "Platform property database regenerated"
 	@echo "==========================================="
 else

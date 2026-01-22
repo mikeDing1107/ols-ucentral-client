@@ -679,9 +679,13 @@ The test suite uses a minimal-impact approach to expose `cfg_parse()` for testin
 
 ### Files
 
-- `test-config-parser.c` - Test framework and validators (3445 lines)
-- `test-stubs.c` - Platform function stubs for testing (214 lines)
-- `validate-schema.py` - Modular schema validation tool (305 lines)
+- `test-config-parser.c` - Test framework and validators (3304 lines)
+- `test-stubs.c` - Platform function stubs for stub mode testing (219 lines)
+- `platform-mocks/brcm-sonic.c` - Platform mocks for brcm-sonic integration testing
+- `platform-mocks/example-platform.c` - Platform mocks for example platform
+- `property-database-base.c` - Base property database (416 lines, 398 properties: 102 implemented, 296 not yet)
+- `property-database-platform-brcm-sonic.c` - Platform property database (419 lines)
+- `validate-schema.py` - Modular schema validation tool (649 lines)
 - `include/config-parser.h` - Header declaring cfg_parse
 - `Makefile` - Test targets: test-config, validate-schema, test-config-full
 - `proto.c` - Added TEST_STATIC macro pattern (2 lines modified)

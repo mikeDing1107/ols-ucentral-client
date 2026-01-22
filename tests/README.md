@@ -142,15 +142,14 @@ make test-config-json USE_PLATFORM=brcm-sonic
 ### Key Files
 
 **Test Implementation:**
-- `tests/config-parser/test-config-parser.c` (3445 lines) - Parser test framework with property tracking
-- `tests/config-parser/test-stubs.c` (214 lines) - Platform function stubs for testing
+- `tests/config-parser/test-config-parser.c` (3304 lines) - Parser test framework with property tracking
+- `tests/config-parser/test-stubs.c` (219 lines) - Platform function stubs for stub mode testing
 - `tests/schema/validate-schema.py` (649 lines) - Standalone schema validator with undefined property detection
 - `tests/config-parser/config-parser.h` - Test header exposing cfg_parse()
 
 **Configuration Files:**
-- `config-samples/ucentral.schema.pretty.json` - uCentral JSON schema (human-readable)
-- `config-samples/ols.ucentral.schema.json` - uCentral JSON schema (compact)
-- `config-samples/*.json` - Test configuration files (37+ configs)
+- `config-samples/ucentral.schema.pretty.json` - uCentral JSON schema (human-readable, single schema file)
+- `config-samples/*.json` - Test configuration files (25 configs total)
 - `config-samples/*invalid*.json` - Negative test cases
 
 **Build System:**
@@ -201,10 +200,11 @@ See TEST_CONFIG_README.md section "Two-Layer Validation Strategy" for detailed e
 ## Test Coverage
 
 Current test suite includes:
-- 37+ configuration files covering various features
+- 25 configuration files covering various features
 - Positive tests (configs that should parse successfully)
 - Negative tests (configs that should fail)
 - Feature-specific validators for critical configurations
+- Two testing modes: stub mode (fast, proto.c only) and platform mode (integration, proto.c + platform code)
 - Platform stub with 54-port simulation (matches ECS4150 hardware)
 
 ### Tested Features
@@ -234,17 +234,30 @@ These features pass schema validation but show as "Unknown" in property reports,
 The testing framework was added with minimal impact to production code:
 
 ### New Files Added
-1. `tests/config-parser/test-config-parser.c` - Complete test framework (3445 lines)
-2. `tests/config-parser/test-stubs.c` - Platform stubs (214 lines)
-3. `tests/schema/validate-schema.py` - Schema validator (649 lines)
-4. `tests/config-parser/config-parser.h` - Test header
-5. `tests/config-parser/TEST_CONFIG_README.md` - Framework documentation
-6. `tests/schema/SCHEMA_VALIDATOR_README.md` - Validator documentation
-7. `tests/MAINTENANCE.md` - Maintenance procedures
-8. `tests/config-parser/Makefile` - Test build system
-9. `tests/tools/` - Property database generation tools
-10. `TESTING_FRAMEWORK.md` - Documentation index (in repository root)
-11. `TEST_CONFIG_PARSER_DESIGN.md` - Test framework architecture and design (in repository root)
+1. `tests/config-parser/test-config-parser.c` (3304 lines) - Complete test framework
+2. `tests/config-parser/test-stubs.c` (219 lines) - Platform stubs for stub mode
+3. `tests/config-parser/platform-mocks/brcm-sonic.c` - Platform mocks for brcm-sonic
+4. `tests/config-parser/platform-mocks/example-platform.c` - Platform mocks for example platform
+5. `tests/config-parser/property-database-base.c` (416 lines) - Base property database (398 properties: 102 implemented, 296 not yet)
+6. `tests/config-parser/property-database-platform-brcm-sonic.c` (419 lines) - Platform property database
+7. `tests/config-parser/property-database-platform-example.c` - Example platform property database
+8. `tests/schema/validate-schema.py` (649 lines) - Schema validator
+9. `tests/config-parser/config-parser.h` - Test header
+10. `tests/config-parser/TEST_CONFIG_README.md` - Framework documentation
+11. `tests/config-parser/platform-mocks/README.md` - Platform mocks documentation
+12. `tests/schema/SCHEMA_VALIDATOR_README.md` - Validator documentation
+13. `tests/MAINTENANCE.md` - Maintenance procedures
+14. `tests/ADDING_NEW_PLATFORM.md` - Platform addition guide
+15. `tests/config-parser/Makefile` - Test build system with stub and platform modes
+16. `tests/tools/extract-schema-properties.py` - Extract properties from schema
+17. `tests/tools/generate-database-from-schema.py` - Generate base property database
+18. `tests/tools/generate-platform-database-from-schema.py` - Generate platform property database
+19. `tests/README.md` - This file (testing framework overview)
+20. `TESTING_FRAMEWORK.md` - Documentation index (in repository root)
+21. `TEST_CONFIG_PARSER_DESIGN.md` - Test framework architecture and design (in repository root)
+22. `QUICK_START_TESTING.md` - Quick start guide (in repository root)
+23. `TEST_RUNNER_README.md` - Test runner script documentation (in repository root)
+24. `run-config-tests.sh` - Test runner script (in repository root)
 
 ### Modified Files
 1. `src/ucentral-client/proto.c` - Added TEST_STATIC macro pattern (2 lines)
@@ -366,8 +379,7 @@ See MAINTENANCE.md for complete property database update procedures.
 The schema file defines what configurations are structurally valid.
 
 ### Schema Location
-- `config-samples/ucentral.schema.pretty.json` - Human-readable version (recommended)
-- `config-samples/ols.ucentral.schema.json` - Compact version
+- `config-samples/ucentral.schema.pretty.json` - Human-readable version (single schema file in repository)
 
 ### Schema Source
 Schema is maintained in the external [ols-ucentral-schema](https://github.com/Telecominfraproject/ols-ucentral-schema) repository.
