@@ -5,6 +5,7 @@ src/docker/ucentral-client
 *.orig
 *.rej
 docker/*
+CLAUDE.md
 
 # Test artifacts and generated files
 tests/config-parser/test-config-parser

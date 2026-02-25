@@ -52,6 +52,10 @@ struct client_config {
 	char devid[UCENTRAL_DEVID_F_MAX_LEN + 1];
 	int selfsigned;
 	int debug;
+	/* PKI 2.0 certificate configuration */
+	const char *ca;               /* CA certificate path (default: operational.ca) */
+	const char *cert;             /* Client certificate path (default: operational.pem) */
+	int hostname_validate;        /* Enable hostname validation */
 };
 
 typedef void (*uc_send_msg_cb)(const char *msg, size_t len);

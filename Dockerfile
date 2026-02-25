@@ -2,7 +2,7 @@ FROM debian:bullseye
 LABEL Description="Ucentral client (Build) environment"
 
 ARG HOME /root
-ARG SCHEMA="4.1.0-rc1"
+ARG SCHEMA="5.0.0"
 ARG SCHEMA_VERSION="v${SCHEMA}"
 ARG SCHEMA_ZIP_FILE="${SCHEMA_VERSION}.zip"
 ARG SCHEMA_UNZIPPED="ols-ucentral-schema-${SCHEMA}"
