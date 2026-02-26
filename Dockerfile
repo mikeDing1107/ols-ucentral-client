@@ -2,11 +2,11 @@ FROM debian:bullseye
 LABEL Description="Ucentral client (Build) environment"
 
 ARG HOME /root
-ARG SCHEMA="5.0.0"
-ARG SCHEMA_VERSION="v${SCHEMA}"
+ARG SCHEMA="release/v5.0.0"
+ARG SCHEMA_VERSION="${SCHEMA}"
 ARG SCHEMA_ZIP_FILE="${SCHEMA_VERSION}.zip"
 ARG SCHEMA_UNZIPPED="ols-ucentral-schema-${SCHEMA}"
-ARG OLS_SCHEMA_SRC="https://github.com/Telecominfraproject/ols-ucentral-schema/archive/refs/tags/${SCHEMA_ZIP_FILE}"
+ARG OLS_SCHEMA_SRC="https://github.com/Telecominfraproject/ols-ucentral-schema/archive/refs/heads/${SCHEMA_ZIP_FILE}"
 SHELL ["/bin/bash", "-c"]
 
 RUN apt-get update -q -y  && apt-get -q -y --no-install-recommends install \
@@ -77,3 +77,8 @@ RUN unzip /tmp/${SCHEMA_ZIP_FILE} -d ${HOME}/ucentral-external-libs/
 
 RUN cd ${HOME}/ucentral-external-libs/ && \
     mv ${SCHEMA_UNZIPPED} ols-ucentral-schema
+
+# Copy version files to /etc/ for runtime use
+COPY version.json /etc/version.json
+RUN mkdir -p /etc && \
+    cp ${HOME}/ucentral-external-libs/ols-ucentral-schema/schema.json /etc/schema.json

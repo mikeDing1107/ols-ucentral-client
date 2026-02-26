@@ -894,8 +894,32 @@ int main(void)
 
 	/* Get gateway address from environment or use default */
 	if ((gw_host = getenv("UC_GATEWAY_ADDRESS"))) {
-		client.server = strdup(gw_host);
-		UC_LOG_INFO("Using gateway from environment: %s\n", client.server);
+		char *colon_pos;
+
+		/* Parse host:port format */
+		colon_pos = strrchr(gw_host, ':');
+		if (colon_pos && colon_pos != gw_host) {
+			/* Found colon - split into host and port */
+			size_t host_len = colon_pos - gw_host;
+			int env_port;
+
+			client.server = strndup(gw_host, host_len);
+			env_port = atoi(colon_pos + 1);
+			if (env_port == 0) {
+				UC_LOG_ERR("Invalid port in UC_GATEWAY_ADDRESS: %s\n", gw_host);
+				goto exit;
+			}
+			/* Only use port from environment if not already set via command line */
+			if (client.port == 0 || client.port == 15002) {  /* 15002 is the default */
+				client.port = env_port;
+			}
+			UC_LOG_INFO("Using gateway from environment: %s:%u\n", client.server, client.port);
+		} else {
+			/* No colon found - assume just hostname */
+			client.server = strdup(gw_host);
+			UC_LOG_INFO("Using gateway from environment: %s (using port %u)\n",
+				    client.server, client.port);
+		}
 	} else {
 		UC_LOG_ERR("No gateway address configured. Set UC_GATEWAY_ADDRESS environment variable.\n");
 		/* TODO: Could add discovery service support here if needed */
