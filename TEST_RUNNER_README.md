@@ -476,4 +476,4 @@ For issues or questions:
 
 Script version: 1.0.0
 Last updated: 2025-12-15
-Compatible with: uCentral schema 4.1.0-rc1 and later
+Compatible with: uCentral schema 5.0.0 and later

@@ -3,9 +3,9 @@
  *
  * Platform: brcm-sonic
  * Source: ../../src/ucentral-client/platform/brcm-sonic/plat-gnma.c
- * Properties: 398 from schema
+ * Properties: 418 from schema
  * Found: 141 potentially implemented
- * Not found: 257 not yet implemented
+ * Not found: 277 not yet implemented
  *
  * This database tracks ALL properties in the uCentral schema.
  * Platform code doesn't parse JSON - it applies structured config
@@ -21,6 +21,7 @@ static const struct property_metadata platform_property_database_brcm_sonic[] = 
     {"ethernet[].acl[].acl-inf-policy-egress", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"ethernet[].acl[].acl-inf-policy-ingress", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"ethernet[].acl[].acl-inf-policy-preference", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].autoneg", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"ethernet[].bpdu-guard.auto-recovery-secs", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"ethernet[].bpdu-guard.enabled", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"ethernet[].dhcp-snoop-port.dhcp-snoop-port-circuit-id", PROP_CONFIGURED, "plat-gnma.c", "plat_port_speed_set", 73, "Applied in plat_port_speed_set()"},
@@ -82,6 +83,20 @@ static const struct property_metadata platform_property_database_brcm_sonic[] = 
     {"ethernet[].poe.do-reset", PROP_CONFIGURED, "plat-gnma.c", "config_poe_port_apply", 4186, "Applied in config_poe_port_apply()"},
     {"ethernet[].poe.power-limit", PROP_CONFIGURED, "plat-gnma.c", "config_poe_port_apply", 4186, "Applied in config_poe_port_apply()"},
     {"ethernet[].poe.priority", PROP_CONFIGURED, "plat-gnma.c", "config_poe_port_apply", 4186, "Applied in config_poe_port_apply()"},
+    {"ethernet[].qos-priority-mapping.priority-untagged", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-cos2dscp[].cfi", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-cos2dscp[].cos", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-cos2dscp[].drop-preced", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-cos2dscp[].phb", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-dscpmutate[].drop-preced", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-dscpmutate[].dscp", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-dscpmutate[].phb", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-ipprec2dscp[].drop-preced", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-ipprec2dscp[].phb", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-ipprec2dscp[].preced", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-phb2queue[].phb", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-phb2queue[].queue-id", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"ethernet[].qos-priority-mapping.qos-map-trust-mode", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"ethernet[].rate-limit-port.egress-kbps", PROP_CONFIGURED, "plat-gnma.c", "plat_port_speed_set", 73, "Applied in plat_port_speed_set()"},
     {"ethernet[].rate-limit-port.ingress-kbps", PROP_CONFIGURED, "plat-gnma.c", "plat_port_speed_set", 73, "Applied in plat_port_speed_set()"},
     {"ethernet[].select-ports[]", PROP_CONFIGURED, "plat-gnma.c", "plat_port_speed_set", 73, "Applied in plat_port_speed_set()"},
@@ -334,6 +349,7 @@ static const struct property_metadata platform_property_database_brcm_sonic[] = 
     {"switch.mclag-config.mclag-domains[].mclag-group[].lacp-config.lacp-role", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"switch.mclag-config.mclag-domains[].mclag-group[].lacp-config.lacp-timeout", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"switch.mclag-config.mclag-domains[].mclag-group[].members[]", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"switch.mclag-config.mclag-domains[].mclag-group[].trunk-id", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"switch.mclag-config.mclag-domains[].peer-ip", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"switch.mclag-config.mclag-domains[].peer-link.link-type", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"switch.mclag-config.mclag-domains[].peer-link.port-id", PROP_CONFIGURED, "plat-gnma.c", "plat_port_speed_set", 73, "Applied in plat_port_speed_set()"},
@@ -360,6 +376,10 @@ static const struct property_metadata platform_property_database_brcm_sonic[] = 
     {"switch.port-isolation.sessions[].uplink.interface-list[]", PROP_CONFIGURED, "plat-gnma.c", "plat_port_speed_set", 73, "Applied in plat_port_speed_set()"},
     {"switch.port-mirror[].analysis-port", PROP_CONFIGURED, "plat-gnma.c", "plat_port_speed_set", 73, "Applied in plat_port_speed_set()"},
     {"switch.port-mirror[].monitor-ports[]", PROP_CONFIGURED, "plat-gnma.c", "plat_port_speed_set", 73, "Applied in plat_port_speed_set()"},
+    {"switch.qos-queue-config.queue-config[].queue-id", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"switch.qos-queue-config.queue-config[].queue-strict-mode", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"switch.qos-queue-config.queue-config[].queue-weight", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
+    {"switch.qos-queue-config.queue-scheduler-mode", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"switch.rt-events.dhcp-snooping.enabled", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"switch.rt-events.dhcp-snooping.sub-events.dhcp-snooping.violation-cleared", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},
     {"switch.rt-events.dhcp-snooping.sub-events.dhcp-snooping.violation-detected", PROP_CONFIGURED, "plat-gnma.c", "NULL", 0, "Not yet implemented in platform"},

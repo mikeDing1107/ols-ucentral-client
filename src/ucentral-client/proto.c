@@ -10,6 +10,7 @@
 #define UC_LOG_COMPONENT UC_LOG_COMPONENT_PROTO
 
 #include "ucentral.h"
+#include "est-client.h"
 
 #define CONFIGURE_STATUS_REJECTED 2
 #define CONFIGURE_STATUS_PARTIALLY_APPLIED 1
@@ -2375,6 +2376,79 @@ reboot_handle(cJSON **rpc)
 }
 
 static void
+reenroll_handle(cJSON **rpc)
+{
+	cJSON *tb[__PARAMS_MAX] = {0};
+	double id = 0;
+	char *renewed_cert = NULL;
+	int ret;
+	const char *operational_cert = UCENTRAL_CONFIG "operational.pem";
+	const char *key_path = UCENTRAL_CONFIG "key.pem";
+	const char *ca_bundle = UCENTRAL_CONFIG "cas.pem";
+	const char *est_server;
+	FILE *fp;
+
+	tb[PARAMS_SERIAL] =
+		cJSON_GetObjectItemCaseSensitive(rpc[JSONRPC_PARAMS], "serial");
+
+	if (rpc[JSONRPC_ID])
+		id = cJSON_GetNumberValue(rpc[JSONRPC_ID]);
+
+	if (!tb[PARAMS_SERIAL]) {
+		UC_LOG_ERR("reenroll message is missing parameters\n");
+		action_reply(1, "invalid parameters", 1, id);
+		return;
+	}
+
+	/* Auto-detect EST server from certificate issuer */
+	est_server = est_get_server_url(operational_cert);
+	if (!est_server) {
+		UC_LOG_ERR("reenroll: Failed to detect EST server URL\n");
+		action_reply(1, "Failed to detect EST server", 1, id);
+		return;
+	}
+
+	UC_LOG_INFO("PKI 2.0: Re-enrolling certificate with EST server: %s\n", est_server);
+
+	/* Perform EST reenrollment */
+	ret = est_simple_reenroll(est_server, operational_cert, key_path,
+				   ca_bundle, &renewed_cert);
+	if (ret != EST_SUCCESS) {
+		UC_LOG_ERR("reenroll: EST reenrollment failed: %s\n", est_get_error());
+		action_reply(1, "Certificate reenrollment failed", 1, id);
+		return;
+	}
+
+	/* Save renewed operational certificate */
+	fp = fopen(operational_cert, "w");
+	if (!fp) {
+		UC_LOG_ERR("reenroll: Failed to open %s for writing\n", operational_cert);
+		free(renewed_cert);
+		action_reply(1, "Failed to save renewed certificate", 1, id);
+		return;
+	}
+
+	if (fwrite(renewed_cert, 1, strlen(renewed_cert), fp) != strlen(renewed_cert)) {
+		UC_LOG_ERR("reenroll: Failed to write renewed certificate\n");
+		fclose(fp);
+		free(renewed_cert);
+		action_reply(1, "Failed to save renewed certificate", 1, id);
+		return;
+	}
+
+	fclose(fp);
+	free(renewed_cert);
+
+	UC_LOG_INFO("PKI 2.0: Certificate renewed successfully, saved to %s\n", operational_cert);
+
+	/* Schedule client restart after 10 seconds to use new certificate */
+	alarm(10);
+
+	action_reply(0, "Certificate reenrollment successful, restarting in 10 seconds", 0, id);
+	UC_LOG_DBG("Reenroll OK\n");
+}
+
+static void
 factory_handle(cJSON **rpc)
 {
 	cJSON *tb[__PARAMS_MAX] = {0};
@@ -4193,6 +4267,8 @@ proto_handle_blob(struct blob *blob)
 			ping_handle(rpc);
 		else if (!strcmp(method, "reboot"))
 			reboot_handle(rpc);
+		else if (!strcmp(method, "reenroll"))
+			reenroll_handle(rpc);
 		else if (!strcmp(method, "factory"))
 			factory_handle(rpc);
 		else if (!strcmp(method, "rtty"))

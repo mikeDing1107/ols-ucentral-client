@@ -30,6 +30,8 @@
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
 
+#include "est-client.h"
+
 struct per_vhost_data__minimal {
 	struct lws_context *context;
 	struct lws_vhost *vhost;
@@ -76,6 +78,10 @@ struct client_config client = {
 	.CN = {0},
 	.firmware = {0},
 	.devid = {0},
+	/* PKI 2.0 defaults */
+	.ca = NULL,                    /* Will be set to operational.ca or cas.pem */
+	.cert = NULL,                  /* Will be set to operational.pem or cert.pem */
+	.hostname_validate = 0,
 };
 
 static const char file_cert[] = UCENTRAL_CONFIG "cert.pem";
@@ -197,7 +203,11 @@ int ssl_cert_get_common_name(char *cn, size_t size, const char *cert_path)
 	return 0;
 }
 
-static int
+/*
+ * LEGACY: DigiCert redirector parsing - deprecated with PKI 2.0
+ * Kept for reference during transition period. To be removed in future release.
+ */
+static int __attribute__((unused))
 ucentral_redirector_parse(char **gw_host)
 {
 	size_t json_data_size = 0;
@@ -508,8 +518,10 @@ static int client_config_read(void)
 	const char *file_devid = UCENTRAL_CONFIG "dev-id";
 
 	/* UGLY W/A for now: get MAC from cert's CN */
-	if (ssl_cert_get_common_name(client.CN, 63, file_cert)) {
-		UC_LOG_ERR("CN read from cert failed");
+	/* PKI 2.0: Extract CN from operational or birth certificate */
+	const char *cert_for_cn = client.cert ? client.cert : file_cert;
+	if (ssl_cert_get_common_name(client.CN, 63, cert_for_cn)) {
+		UC_LOG_ERR("CN read from cert failed (%s)\n", cert_for_cn);
 		return -1;
 	}
 	client.serial = &client.CN[10];
@@ -548,7 +560,12 @@ static int client_config_read(void)
 	return 0;
 }
 
-static int firstcontact(void)
+/*
+ * LEGACY: DigiCert first contact flow - deprecated with PKI 2.0
+ * Kept for reference during transition period. To be removed in future release.
+ */
+static int __attribute__((unused))
+firstcontact(void)
 {
 	const char *redirector_host = redirector_host_get();
 	FILE *fp_json;
@@ -742,6 +759,92 @@ out:
 	return -1;
 }
 
+/**
+ * PKI 2.0: Check for operational certificate and enroll if needed
+ * Follows TIP/OpenWifi proven pattern from wlan-ap
+ *
+ * Returns: 0 on success (operational cert available), -1 on failure
+ */
+static int pki2_check_and_enroll(void)
+{
+	const char *operational_cert = UCENTRAL_CONFIG "operational.pem";
+	const char *operational_ca = UCENTRAL_CONFIG "operational.ca";
+	const char *birth_cert = UCENTRAL_CONFIG "cert.pem";
+	const char *birth_key = UCENTRAL_CONFIG "key.pem";
+	const char *birth_ca = UCENTRAL_CONFIG "cas.pem";  /* or insta.pem */
+	struct stat st;
+	int ret;
+
+	/* Check if operational certificate already exists */
+	if (stat(operational_cert, &st) == 0) {
+		UC_LOG_INFO("PKI 2.0: Operational certificate found, using it\n");
+		client.cert = operational_cert;
+		client.ca = operational_ca;
+		return 0;
+	}
+
+	/* No operational cert - check if we have birth certificate */
+	if (stat(birth_cert, &st) != 0) {
+		UC_LOG_ERR("PKI 2.0: No birth certificate found at %s\n", birth_cert);
+		return -1;
+	}
+
+	UC_LOG_INFO("PKI 2.0: No operational certificate, attempting EST enrollment\n");
+
+	/* Get EST server URL (auto-detects from certificate issuer) */
+	const char *est_server = est_get_server_url(birth_cert);
+	if (!est_server) {
+		UC_LOG_ERR("PKI 2.0: Failed to determine EST server\n");
+		/* Fall back to using birth certificate */
+		client.cert = birth_cert;
+		client.ca = birth_ca;
+		return -1;
+	}
+
+	UC_LOG_INFO("PKI 2.0: EST server: %s\n", est_server);
+
+	/* Perform EST simple enrollment */
+	char *enrolled_cert = NULL;
+	ret = est_simple_enroll(est_server, birth_cert, birth_key, birth_ca, &enrolled_cert);
+	if (ret != EST_SUCCESS) {
+		UC_LOG_ERR("PKI 2.0: EST enrollment failed: %s\n", est_get_error());
+		/* Fall back to using birth certificate */
+		client.cert = birth_cert;
+		client.ca = birth_ca;
+		return -1;
+	}
+
+	UC_LOG_INFO("PKI 2.0: EST enrollment successful\n");
+
+	/* Save operational certificate */
+	ret = est_save_cert(enrolled_cert, strlen(enrolled_cert), operational_cert);
+	free(enrolled_cert);
+	if (ret != EST_SUCCESS) {
+		UC_LOG_ERR("PKI 2.0: Failed to save operational certificate: %s\n", est_get_error());
+		client.cert = birth_cert;
+		client.ca = birth_ca;
+		return -1;
+	}
+
+	/* Get operational CA certificates */
+	char *ca_certs = NULL;
+	ret = est_get_cacerts(est_server, operational_cert, birth_key, birth_ca, &ca_certs);
+	if (ret == EST_SUCCESS) {
+		est_save_cert(ca_certs, strlen(ca_certs), operational_ca);
+		free(ca_certs);
+		UC_LOG_INFO("PKI 2.0: Operational CA certificates saved\n");
+	} else {
+		UC_LOG_INFO("PKI 2.0: Failed to get CA certs, using birth CA\n");
+	}
+
+	/* Use newly enrolled operational certificate */
+	client.cert = operational_cert;
+	client.ca = operational_ca;
+
+	UC_LOG_INFO("PKI 2.0: Successfully enrolled and saved operational certificate\n");
+	return 0;
+}
+
 int main(void)
 {
 	int logs = LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_CLIENT;
@@ -755,7 +858,6 @@ int main(void)
 	size_t password_len;
 	char password[64];
 	struct stat st;
-	int ret;
 
 	sigthread_create(); /* move signal handling to a dedicated thread */
 
@@ -785,40 +887,58 @@ int main(void)
 
 	plat_revision_get(client.firmware, sizeof(client.firmware));
 
+	/* PKI 2.0: Check for operational certificate and enroll if needed */
+	if (pki2_check_and_enroll() != 0) {
+		UC_LOG_INFO("PKI 2.0: Enrollment failed, using birth certificate as fallback\n");
+	}
+
+	/* Get gateway address from environment or use default */
 	if ((gw_host = getenv("UC_GATEWAY_ADDRESS"))) {
-		client.server = strdup(gw_host);
-	} else {
-		while (1) {
-			if (uc_loop_interrupted_get())
+		char *colon_pos;
+
+		/* Parse host:port format */
+		colon_pos = strrchr(gw_host, ':');
+		if (colon_pos && colon_pos != gw_host) {
+			/* Found colon - split into host and port */
+			size_t host_len = colon_pos - gw_host;
+			int env_port;
+
+			client.server = strndup(gw_host, host_len);
+			env_port = atoi(colon_pos + 1);
+			if (env_port == 0) {
+				UC_LOG_ERR("Invalid port in UC_GATEWAY_ADDRESS: %s\n", gw_host);
 				goto exit;
-			if (firstcontact()) {
-				UC_LOG_INFO(
-					"Firstcontact failed; trying again in 1 second...\n");
-				sleep(1);
-				continue;
 			}
-
-			break;
-		}
-
-		/* Workaround for now: if parse failed, use default one */
-		ret = ucentral_redirector_parse(&gw_host);
-		if (ret) {
-			UC_LOG_ERR("Firstcontact json data parse failed: %d\n",
-				   ret);
+			/* Only use port from environment if not already set via command line */
+			if (client.port == 0 || client.port == 15002) {  /* 15002 is the default */
+				client.port = env_port;
+			}
+			UC_LOG_INFO("Using gateway from environment: %s:%u\n", client.server, client.port);
 		} else {
-			client.server = gw_host;
+			/* No colon found - assume just hostname */
+			client.server = strdup(gw_host);
+			UC_LOG_INFO("Using gateway from environment: %s (using port %u)\n",
+				    client.server, client.port);
 		}
+	} else {
+		UC_LOG_ERR("No gateway address configured. Set UC_GATEWAY_ADDRESS environment variable.\n");
+		/* TODO: Could add discovery service support here if needed */
+		goto exit;
 	}
 
 	memset(&info, 0, sizeof info);
 
 	info.port = CONTEXT_PORT_NO_LISTEN;
 	info.options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
-	info.client_ssl_cert_filepath = UCENTRAL_CONFIG"cert.pem";
+
+	/* Use PKI 2.0 certificates (operational or birth fallback) */
+	info.client_ssl_cert_filepath = client.cert ? client.cert : UCENTRAL_CONFIG"cert.pem";
 	if (!stat(UCENTRAL_CONFIG"key.pem", &st))
 		info.client_ssl_private_key_filepath = UCENTRAL_CONFIG"key.pem";
-	info.ssl_ca_filepath = UCENTRAL_CONFIG"cas.pem";
+	info.ssl_ca_filepath = client.ca ? client.ca : UCENTRAL_CONFIG"cas.pem";
+
+	UC_LOG_INFO("PKI 2.0: Using certificate: %s\n", info.client_ssl_cert_filepath);
+	UC_LOG_INFO("PKI 2.0: Using CA: %s\n", info.ssl_ca_filepath);
 	info.protocols = protocols;
 	info.fd_limit_per_thread = 1 + 1 + 1;
         info.connect_timeout_secs = 30;

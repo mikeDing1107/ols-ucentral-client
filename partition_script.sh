@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# PKI 2.0: This script provisions BIRTH certificates to the device partition.
+# Birth certificates (cas.pem, cert.pem, key.pem) are used for initial EST enrollment.
+# Operational certificates (operational.pem, operational.ca) are generated at runtime
+# via EST protocol and stored in /etc/ucentral/ by the ucentral-client daemon.
 REQUIRED_CERT_FILES="cas.pem cert.pem key.pem dev-id"
 
 function partition_replace_certs()

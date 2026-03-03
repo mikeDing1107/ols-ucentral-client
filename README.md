@@ -126,36 +126,105 @@ Technically same as 'all'. Produces final .deb pkg that can be copied to target
 and installed as native deb pkg.  
 
 # Certificates
-TIP Certificates should be preinstalled upon launch of the service. uCentral
-client uses certificates to establish a secure connection with both Redirector
-(firstcontact), as well as te GW itself.  
 
-In order to create a partition, partition_script.sh (part of this repo)
-can be used to do so, the steps are as follows (should be executed on device):
-Enter superuser mode
+## PKI 2.0 Architecture
+
+The uCentral client implements **PKI 2.0** using the EST (Enrollment over Secure Transport, RFC 7030) protocol for automated certificate lifecycle management.
+
+### Certificate Types
+
+**Birth Certificates** (Factory-provisioned):
+- `cert.pem` - Birth certificate (factory-issued)
+- `key.pem` - Private key
+- `cas.pem` - CA certificate bundle
+- `dev-id` - Device identifier
+
+**Operational Certificates** (Runtime-generated):
+- `operational.pem` - Operational certificate (obtained via EST)
+- `operational.ca` - Operational CA certificate
+
+### Certificate Lifecycle
+
+1. **Factory Provisioning**: Birth certificates are provisioned to the device partition during manufacturing or initial setup
+2. **First Boot**: On first boot, the uCentral client automatically enrolls with the EST server using birth certificates to obtain operational certificates
+3. **Runtime**: The client uses operational certificates for all gateway connections
+4. **Renewal**: Operational certificates can be renewed via the `reenroll` RPC command before expiration
+
+### Automatic EST Enrollment
+
+The client automatically:
+- Detects the EST server based on certificate issuer (QA vs Production)
+- Enrolls with the EST server to obtain operational certificates
+- Saves operational certificates to `/etc/ucentral/`
+- Falls back to birth certificates if enrollment fails
+
+### Installing Birth Certificates
+
+Birth certificates should be preinstalled before launching the service. Use `partition_script.sh` (included in this repo) to provision certificates to the device partition.
+
+**Steps (execute on device):**
+
+1. Enter superuser mode:
+```bash
+sudo su
 ```
-$ sudo su
+
+2. Create temp directory and copy certificates + script:
+```bash
+mkdir /tmp/temp
+cd /tmp/temp/
+scp <remote_host>:/certificates/<some_mac>.tar ./
+scp <remote_host>:/partition_script.sh ./
+tar -xvf ./<some_mac>.tar
 ```
-Create temp directory to copy certificates + script into, and unpack
-Copy both certificates and partition script to the device:
-```
-$ mkdir /tmp/temp
-$ cd /tmp/temp/
-$ scp <remote_host>:/certificates/<some_mac>.tar ./
-$ scp <remote_host>:/partition_script.sh ./
-$ tar -xvf ./<some_mac>.tar
-```
-After certificate files are being unpacked, launch this script with single argument being
-the path to the certificates directory (please note that BASH interpreter should be used explicitly,
-it's done to make this script compatible with most ONIE builds as well, as they mostly
-pack busybox / sh):
-```
+
+3. Run the partition script to install birth certificates:
+```bash
 bash ./partition_script.sh ./
 ```
-  
-Once certificates are installed and partition is created, rebooting the device is required.
-After reboot and uCentral start, service creates <TCA> volume upon start based on physical partition
-(by-label provided by udev - /dev/disk/by-label/ONIE-TIP-CA-CERT) automatically.
+
+4. Reboot the device:
+```bash
+reboot
+```
+
+After reboot, the uCentral service will:
+- Mount the certificate partition (ONIE-TIP-CA-CERT)
+- Automatically perform EST enrollment to obtain operational certificates
+- Connect to the gateway using operational certificates
+
+### Certificate Renewal
+
+To renew operational certificates before expiration, send the `reenroll` RPC command from the gateway:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 123,
+  "method": "reenroll",
+  "params": {
+    "serial": "device_serial_number"
+  }
+}
+```
+
+The client will:
+1. Contact the EST server with current operational certificate
+2. Obtain a renewed operational certificate
+3. Save the new certificate to `/etc/ucentral/operational.pem`
+4. Restart after 10 seconds to use the new certificate
+
+### EST Servers
+
+- **QA**: `qaest.certificates.open-lan.org:8001` (for Demo Birth CA)
+- **Production**: `est.certificates.open-lan.org` (for Production Birth CA)
+
+The EST server is automatically selected based on the certificate issuer field.
+
+### Certificate Files Location
+
+- Birth certificates: `/etc/ucentral/cert.pem`, `/etc/ucentral/key.pem`, `/etc/ucentral/cas.pem`
+- Operational certificates: `/etc/ucentral/operational.pem`, `/etc/ucentral/operational.ca`
 
 # Testing
 
