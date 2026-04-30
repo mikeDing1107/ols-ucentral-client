@@ -127,16 +127,16 @@ const char* est_get_server_url(const char *cert_path)
 	if (env_server && env_server[0])
 		return env_server;
 
+	const char *server = EST_SERVER_PROD;
+
 	/* Caller must pass the birth cert; operational cert issuers are not
 	 * matched below. */
 	char *issuer = est_get_cert_issuer(cert_path);
 	if (!issuer) {
 		UC_LOG_INFO("EST: cert issuer unavailable, defaulting to %s\n",
-			    EST_SERVER_PROD);
-		return EST_SERVER_PROD;
+			    server);
+		return server;
 	}
-
-	const char *server = EST_SERVER_PROD;
 
 	if (strstr(issuer, "OpenLAN Demo Birth CA")) {
 		server = EST_SERVER_QA;
@@ -144,7 +144,7 @@ const char* est_get_server_url(const char *cert_path)
 		server = EST_SERVER_PROD;
 	} else {
 		UC_LOG_INFO("EST: unrecognized cert issuer '%s', defaulting to %s\n",
-			    issuer, EST_SERVER_PROD);
+			    issuer, server);
 	}
 
 	OPENSSL_free(issuer);
