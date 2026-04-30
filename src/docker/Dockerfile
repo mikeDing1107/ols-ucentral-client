@@ -1,4 +1,4 @@
-FROM debian:buster
+FROM debian:bullseye
 
 RUN echo "uCentral client support"
 RUN apt-get update && apt-get install --no-install-recommends -y \

@@ -2382,6 +2382,7 @@ reenroll_handle(cJSON **rpc)
 	double id = 0;
 	char *renewed_cert = NULL;
 	int ret;
+	const char *birth_cert = UCENTRAL_CONFIG "cert.pem";
 	const char *operational_cert = UCENTRAL_CONFIG "operational.pem";
 	const char *key_path = UCENTRAL_CONFIG "key.pem";
 	const char *ca_bundle = UCENTRAL_CONFIG "cas.pem";
@@ -2400,8 +2401,7 @@ reenroll_handle(cJSON **rpc)
 		return;
 	}
 
-	/* Auto-detect EST server from certificate issuer */
-	est_server = est_get_server_url(operational_cert);
+	est_server = est_get_server_url(birth_cert);
 	if (!est_server) {
 		UC_LOG_ERR("reenroll: Failed to detect EST server URL\n");
 		action_reply(1, "Failed to detect EST server", 1, id);

@@ -31,7 +31,7 @@ ldconfig
 
 echo "Making ucentral-client application..."
 cd $HOME/ucentral/
-{ make clean && make test && make UCENTRAL_PLATFORM=$UCENTRAL_PLATFORM -j4; } || exit 1;
+{ make test && make UCENTRAL_PLATFORM=$UCENTRAL_PLATFORM -j4; } || exit 1;
 
 echo "Installing ucentral-client to /root/deliverables"
 cp ucentral-client /root/deliverables/

@@ -14,6 +14,7 @@ all: build-host-env build-ucentral-app build-ucentral-docker-img build-final-deb
 build-host-env:
 	@mkdir output 2>/dev/null || true
 	@mkdir docker 2>/dev/null || true
+	cp version.json docker/version.json
 	# Build docker img if not exists already, do nothing otherwise;
 	@echo Checking / building docker build env img;
 	docker inspect --type=image ${IMG_ID}:${IMG_TAG} >/dev/null 2>&1 || \
