@@ -73,10 +73,10 @@ RUN cd ${HOME}/ucentral-external-libs/rtty/ && \
 	cmake .. && \
 	make -j4
 
-RUN unzip /tmp/${SCHEMA_ZIP_FILE} -d ${HOME}/ucentral-external-libs/
+RUN unzip /tmp/$(basename ${SCHEMA_ZIP_FILE}) -d ${HOME}/ucentral-external-libs/
 
 RUN cd ${HOME}/ucentral-external-libs/ && \
-    mv ${SCHEMA_UNZIPPED} ols-ucentral-schema
+    mv ${SCHEMA_UNZIPPED//\//-} ols-ucentral-schema
 
 # Copy version files to /etc/ for runtime use
 COPY version.json /etc/version.json

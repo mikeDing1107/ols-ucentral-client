@@ -24,6 +24,9 @@
 #include <openssl/evp.h>
 #include <openssl/pkcs7.h>
 
+#define UC_LOG_COMPONENT UC_LOG_COMPONENT_CLIENT
+#include "ucentral-log.h"
+
 #include "est-client.h"
 
 /* EST default servers */
@@ -124,17 +127,24 @@ const char* est_get_server_url(const char *cert_path)
 	if (env_server && env_server[0])
 		return env_server;
 
-	/* Auto-detect from certificate issuer */
-	char *issuer = est_get_cert_issuer(cert_path);
-	if (!issuer)
-		return EST_SERVER_PROD; /* default fallback */
-
 	const char *server = EST_SERVER_PROD;
+
+	/* Caller must pass the birth cert; operational cert issuers are not
+	 * matched below. */
+	char *issuer = est_get_cert_issuer(cert_path);
+	if (!issuer) {
+		UC_LOG_INFO("EST: cert issuer unavailable, defaulting to %s\n",
+			    server);
+		return server;
+	}
 
 	if (strstr(issuer, "OpenLAN Demo Birth CA")) {
 		server = EST_SERVER_QA;
 	} else if (strstr(issuer, "OpenLAN Birth Issuing CA")) {
 		server = EST_SERVER_PROD;
+	} else {
+		UC_LOG_INFO("EST: unrecognized cert issuer '%s', defaulting to %s\n",
+			    issuer, server);
 	}
 
 	OPENSSL_free(issuer);
