@@ -71,7 +71,7 @@ plat_poe_port_state_get(uint16_t pid,
 static int
 plat_poe_state_get(struct plat_poe_state *state);
 static int plat_port_speed_set(uint16_t fp_p_id, uint32_t speed);
-static int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex);
+//static int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex);
 static int plat_port_admin_state_set(uint16_t fp_p_id, uint8_t state);
 static int plat_vlan_rif_set(uint16_t vid, struct plat_ipv4 *ipv4);
 int plat_vlan_memberlist_set(struct gnma_change *c,
@@ -1456,7 +1456,7 @@ int plat_port_speed_set(uint16_t fp_p_id, uint32_t speed)
 	return 0;
 }
 
-int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex)
+/*int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex)
 {
 	struct gnma_port_key gnma_port;
 
@@ -1468,7 +1468,7 @@ int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex)
 			     : false);
 
 	return 0;
-}
+}*/
 
 int plat_port_speed_get(uint16_t fp_p_id, uint32_t *speed)
 {
@@ -4459,7 +4459,6 @@ static int plat_port_config_apply(struct plat_cfg *cfg)
 		ret = plat_port_admin_state_set(i, cfg->ports[i].state);
 		if (cfg->ports[i].state) {
 			ret |= plat_port_speed_set(i, cfg->ports[i].speed);
-			ret |= plat_port_duplex_set(i, cfg->ports[i].duplex);
 		}
 
 		if (ret)
@@ -4610,44 +4609,27 @@ int plat_config_apply(struct plat_cfg *cfg, uint32_t id)
 	}
 
 	ret = config_vlan_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = plat_port_config_apply(cfg);
 	if (ret)
 		return -1;
 
 	ret = config_unit_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_stp_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_vlan_ipv4_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_portl2_ipv4_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_vlan_dhcp_relay_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_metrics_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_router_apply(cfg);
-	if (ret)
-		return -1;
 
 	if (featsts[FEAT_AAA] == FEATSTS_OK) {
-		if (config_ieee8021x_apply(cfg))
-			return -1;
+		config_ieee8021x_apply(cfg);
 	} else {
 		CFG_LOG_CRIT(
 			"AAA feature is not initialized, skipping configuration");
@@ -4656,7 +4638,6 @@ int plat_config_apply(struct plat_cfg *cfg, uint32_t id)
 	/* there is no rollback for password, so this should be run last */
 	ret = config_system_password_apply(cfg);
 	if (ret)
-		return -1;
 
 	plat_syslog_set(cfg->log_cfg, cfg->log_cfg_cnt);
 

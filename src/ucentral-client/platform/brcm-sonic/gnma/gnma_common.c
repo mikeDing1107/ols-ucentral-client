@@ -195,7 +195,7 @@ int gnma_port_speed_set(struct gnma_port_key *port_key, const char *speed)
 	char *path;
 	int ret;
 
-	ret = asprintf(&path, "/sonic-port:sonic-port/PORT/PORT_LIST[ifname=%s]",
+	ret = asprintf(&path, "/sonic-port:sonic-port/PORT/PORT_LIST[name=%s]",
 		       port_key->name);
 	if (ret == -1) {
 		ret = GNMA_ERR_COMMON;
@@ -226,12 +226,12 @@ int gnma_port_speed_set(struct gnma_port_key *port_key, const char *speed)
 		goto err_val_alloc;
 	}
 
-	if (!cJSON_AddStringToObject(val, "ifname", port_key->name)) {
+	if (!cJSON_AddStringToObject(val, "name", port_key->name)) {
 		ret = GNMA_ERR_COMMON;
 		goto err_val_set;
 	}
 
-	if (!cJSON_AddStringToObject(val, "speed", speed)) {
+	if (!cJSON_AddNumberToObject(val, "speed", atoi(speed))) {
 		ret = GNMA_ERR_COMMON;
 		goto err_val_set;
 	}
@@ -2265,9 +2265,11 @@ int gnma_port_list_get(uint16_t *list_size, struct gnma_port_key *port_key_list)
 		goto err_gnmi_get;
 	}
 
+	GNMI_C_CONNECTOR_DEBUG_LOG("DEBUG: RAW buf content: [%s]\n", buf);
 	parsed_res = cJSON_Parse(buf);
 	ZFREE(buf);
 	if (!parsed_res) {
+		GNMI_C_CONNECTOR_DEBUG_LOG("DEBUG: cJSON_Parse FAILED! buf content: [%s]\n", buf); 
 		ret = GNMA_ERR_COMMON;
 		goto err_gnmi_parse;
 	}
@@ -2281,7 +2283,7 @@ int gnma_port_list_get(uint16_t *list_size, struct gnma_port_key *port_key_list)
 
 	ports_num = 0;
 	cJSON_ArrayForEach(iter, ports_arr) {
-		port_name = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(iter, "ifname"));
+		port_name = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(iter, "name"));
 		if (!port_name) {
 			ret = GNMA_ERR_COMMON;
 			goto err_result_fill;

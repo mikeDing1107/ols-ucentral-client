@@ -47,6 +47,50 @@ static void set_deadline_after_us(grpc::ClientContext &c, int64_t us)
 	}
 }
 
+/*Add for new sonic yang version 0.7.0*/
+static int convertYangPath2ProtoPathNew(const char *yangPath, ::gnmi::Path *path)
+{
+	std::string pathStr(yangPath);
+        if (!pathStr.empty() && pathStr[0] == '/') {
+                 pathStr = pathStr.substr(1);
+        }
+        size_t colonPos = pathStr.find(':');
+        if (colonPos != std::string::npos) {
+                 path->set_origin(pathStr.substr(0, colonPos));
+                 pathStr = pathStr.substr(colonPos + 1);
+        }
+
+        std::stringstream ss(pathStr);
+        std::string elemName;
+        while (std::getline(ss, elemName, '/')) {
+                 if (!elemName.empty()) {
+                         auto *elem = path->add_elem();
+                         size_t bracketPos = elemName.find('[');
+                         if (bracketPos != std::string::npos) {
+                                  std::string pureName = elemName.substr(0, bracketPos);
+                                  elem->set_name(pureName);
+
+                                  std::string keyStr = elemName.substr(bracketPos + 1);
+                                  size_t endBracket = keyStr.find(']');
+                                  if (endBracket != std::string::npos) {
+                                          keyStr = keyStr.substr(0, endBracket);
+                                  }
+
+                                  size_t equalPos = keyStr.find('=');
+                                  if (equalPos != std::string::npos) {
+                                          std::string keyName = keyStr.substr(0, equalPos);
+                                          std::string keyValue = keyStr.substr(equalPos + 1);
+                                          (*elem->mutable_key())[keyName] = keyValue;
+                                  }
+                         } else {
+                                elem->set_name(elemName);
+                         }
+                 }
+        }
+
+	return 1;
+}
+
 static int convertYangPath2ProtoPath(const char *yangPath, ::gnmi::Path *path)
 {
 	int strLen = strlen(yangPath);
@@ -102,7 +146,7 @@ struct Token {
 	int err;
 };
 
-static Token sonic_jwt_authenticate(gnoi::sonic::SonicService::Stub *stub,
+/*static Token sonic_jwt_authenticate(gnoi::sonic::SonicService::Stub *stub,
 				    const char *username, const char *password,
 				    int64_t timeout_us)
 {
@@ -141,7 +185,7 @@ static Token sonic_jwt_authenticate(gnoi::sonic::SonicService::Stub *stub,
 
 	GNMI_C_CONNECTOR_DEBUG_LOG("Access token %s", result.token.c_str());
 	return result;
-}
+}*/
 
 struct gnmi_session {
 	std::unique_ptr<gnmi::gNMI::Stub> *stub;
@@ -219,7 +263,7 @@ static thread_local std::string g_token;
 template <class F>
 static ::grpc::Status invoke_with_token(gnmi_session *gs, F &&f)
 {
-	::grpc::Status status{ ::grpc::StatusCode::UNAUTHENTICATED,
+/*	::grpc::Status status{ ::grpc::StatusCode::UNAUTHENTICATED,
 			       "failed to obtain a token" };
 
 	if (!g_token.empty()) {
@@ -237,6 +281,10 @@ static ::grpc::Status invoke_with_token(gnmi_session *gs, F &&f)
 
 	g_token = move(t.token);
 	return f(g_token);
+*/
+	(void)gs;
+	std::string dummy_token = "";
+	return f(dummy_token);
 }
 
 struct gnmi_setrq {
@@ -352,11 +400,20 @@ static int gnmi_jsoni_get_internal(struct gnmi_session *gs, const char *path,
 
 	greq.set_encoding(::gnmi::JSON_IETF);
 	gpath = greq.add_path();
-	convertYangPath2ProtoPath(path, gpath);
+	convertYangPath2ProtoPathNew(path, gpath);
 
 	status = invoke_with_token(gs, [&](const std::string &token) {
+		(void)token;
 		::grpc::ClientContext context;
-		context.AddMetadata("access_token", token);
+		GNMI_C_CONNECTOR_DEBUG_LOG("Using gNMI credentials for user: %s", gs->username->c_str());
+		GNMI_C_CONNECTOR_DEBUG_LOG("Using gNMI credentials for pass: %s", gs->password->c_str());
+		if (!gs->username || !gs->password) {
+        GNMI_C_CONNECTOR_DEBUG_LOG("CRITICAL ERROR: gs->username or gs->password is NULL!");
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Username or password is NULL");
+    }
+		//context.AddMetadata("access_token", token);
+		context.AddMetadata("username", *gs->username);
+		context.AddMetadata("password", *gs->password);
 		set_deadline_after_us(context, timeout_us);
 		return (*gs->stub)->Get(&context, greq, &gres);
 	});
@@ -364,6 +421,7 @@ static int gnmi_jsoni_get_internal(struct gnmi_session *gs, const char *path,
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+		GNMI_C_CONNECTOR_DEBUG_LOG("Error Message: %s", status.error_message().c_str());
 		main_log_cb(status.error_message().c_str());
 		return -1;
 	}
@@ -457,18 +515,25 @@ int gnmi_jsoni_set(struct gnmi_session *gs, const char *path, char *req,
 	::grpc::Status status;
 
 	upd = greq.add_update();
-	convertYangPath2ProtoPath(path, upd->mutable_path());
+	convertYangPath2ProtoPathNew(path, upd->mutable_path());
+	GNMI_C_CONNECTOR_DEBUG_LOG("DEBUG [GNMI SET PAYLOAD]: Path= %s,JSON=%s", path, req);
 	upd->mutable_val()->set_json_ietf_val(std::string(req));
 
 	status = invoke_with_token(gs, [&](const std::string &token) {
+		(void)token;
 		::grpc::ClientContext context;
-		context.AddMetadata("access_token", token);
+		GNMI_C_CONNECTOR_DEBUG_LOG("Using gNMI credentials for user: %s", gs->username->c_str());
+                GNMI_C_CONNECTOR_DEBUG_LOG("Using gNMI credentials for pass: %s", gs->password->c_str());
+		//context.AddMetadata("access_token", token);
+		context.AddMetadata("username", *gs->username);
+                context.AddMetadata("password", *gs->password);
 		set_deadline_after_us(context, timeout_us);
 		return (*gs->stub)->Set(&context, greq, &gres);
 	});
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+		GNMI_C_CONNECTOR_DEBUG_LOG("Error Message: %s", status.error_message().c_str());
 		main_log_cb(status.error_message().c_str());
 		return -1;
 	}

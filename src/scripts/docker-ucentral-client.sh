@@ -95,7 +95,7 @@ start() {
 
 wait() {
 
-    /usr/local/bin/container pre-wait $DOCKERNAME
+    /usr/local/bin/container wait $DOCKERNAME
     docker_pid="$(docker inspect -f {{.State.Pid}} $DOCKERNAME)"
     tail --pid=$docker_pid -f /dev/null
 }

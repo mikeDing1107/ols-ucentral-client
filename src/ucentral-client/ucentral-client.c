@@ -524,7 +524,7 @@ static int client_config_read(void)
 		UC_LOG_ERR("CN read from cert failed (%s)\n", cert_for_cn);
 		return -1;
 	}
-	client.serial = &client.CN[10];
+	client.serial = "00c002bef3c0";
 
 	/* Make sure MAC in CN is lowercase (either way redirector won't be
 	 * happy)
