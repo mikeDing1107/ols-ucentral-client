@@ -524,7 +524,12 @@ static int client_config_read(void)
 		UC_LOG_ERR("CN read from cert failed (%s)\n", cert_for_cn);
 		return -1;
 	}
-	client.serial = &client.CN[10];
+	client.serial = &client.CN[4];
+	char *slash_ptr = strchr(client.serial, '/');
+	if (slash_ptr != NULL) {
+    		*slash_ptr = '\0';
+	}
+	UC_LOG_ERR("serial is %s", client.serial);
 
 	/* Make sure MAC in CN is lowercase (either way redirector won't be
 	 * happy)
@@ -806,6 +811,7 @@ static int pki2_check_and_enroll(void)
 	/* Perform EST simple enrollment */
 	char *enrolled_cert = NULL;
 	ret = est_simple_enroll(est_server, birth_cert, birth_key, birth_ca, &enrolled_cert);
+	UC_LOG_INFO("PKI 2.0: EST enroll end\n");
 	if (ret != EST_SUCCESS) {
 		UC_LOG_ERR("PKI 2.0: EST enrollment failed: %s\n", est_get_error());
 		/* Fall back to using birth certificate */

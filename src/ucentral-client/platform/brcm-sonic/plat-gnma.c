@@ -65,13 +65,13 @@ static int
 plat_port_lldp_peer_info_get(uint16_t fp_p_id,
 			     struct plat_port_lldp_peer_info *peer_info);
 static int plat_upgrade_state(int *operation, int *percentage);
-static int
+/*static int
 plat_poe_port_state_get(uint16_t pid,
 			struct plat_poe_port_state *state);
 static int
-plat_poe_state_get(struct plat_poe_state *state);
+plat_poe_state_get(struct plat_poe_state *state);*/
 static int plat_port_speed_set(uint16_t fp_p_id, uint32_t speed);
-static int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex);
+//static int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex);
 static int plat_port_admin_state_set(uint16_t fp_p_id, uint8_t state);
 static int plat_vlan_rif_set(uint16_t vid, struct plat_ipv4 *ipv4);
 int plat_vlan_memberlist_set(struct gnma_change *c,
@@ -1456,7 +1456,7 @@ int plat_port_speed_set(uint16_t fp_p_id, uint32_t speed)
 	return 0;
 }
 
-int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex)
+/*int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex)
 {
 	struct gnma_port_key gnma_port;
 
@@ -1468,7 +1468,7 @@ int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex)
 			     : false);
 
 	return 0;
-}
+}*/
 
 int plat_port_speed_get(uint16_t fp_p_id, uint32_t *speed)
 {
@@ -2011,7 +2011,7 @@ exit:
 	return ret;
 }
 
-static int
+/*static int
 __poe_port_state_buf_parse(char *buf, size_t buf_size,
 			   struct plat_poe_port_state *port_state)
 {
@@ -2049,9 +2049,6 @@ __poe_port_state_buf_parse(char *buf, size_t buf_size,
 		cJSON_GetObjectItemCaseSensitive(state, "openconfig-if-poe-ext:power-class-requested");
 	class_assigned =
 		cJSON_GetObjectItemCaseSensitive(state, "power-class");
-	/* It's okay if these are NULL, means PSE has no Powered Device
-	 * (or link is down).
-	 */
 	if (!class_requested || !cJSON_IsNumber(class_requested))
 		port_state->class_requested = 0;
 	else
@@ -2103,9 +2100,9 @@ __poe_port_state_buf_parse(char *buf, size_t buf_size,
 err:
 	cJSON_Delete(state);
 	return -1;
-}
+}*/
 
-static int
+/*static int
 plat_poe_port_state_get(uint16_t pid,
 			struct plat_poe_port_state *state)
 {
@@ -2129,9 +2126,9 @@ plat_poe_port_state_get(uint16_t pid,
 err:
 	free(buf);
 	return ret;
-}
+}*/
 
-static int
+/*static int
 __poe_state_buf_parse(char *buf, size_t buf_size,
 		      struct plat_poe_state *poe_state)
 {
@@ -2146,7 +2143,6 @@ __poe_state_buf_parse(char *buf, size_t buf_size,
 	poe_state->max_power_budget =
 		cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(state, "max-power-budget"));
 
-	/* For some reason, new BRCM images report this value as string, not value... */
 	tmp = cJSON_GetObjectItemCaseSensitive(state, "power-threshold");
 	if (!tmp || !cJSON_GetStringValue(tmp))
 		goto err;
@@ -2172,9 +2168,9 @@ __poe_state_buf_parse(char *buf, size_t buf_size,
 err:
 	cJSON_Delete(state);
 	return -1;
-}
+}*/
 
-static int
+/*static int
 plat_poe_state_get(struct plat_poe_state *state)
 {
 	const size_t buf_size = 4096;
@@ -2194,7 +2190,7 @@ plat_poe_state_get(struct plat_poe_state *state)
 err:
 	free(buf);
 	return ret;
-}
+}*/
 
 /* NOTE: In case of error this function left partial config */
 int plat_vlan_list_set(BITMAP_DECLARE(vlans_to_cfg, GNMA_MAX_VLANS))
@@ -3274,23 +3270,25 @@ static int plat_port_info_get(struct plat_port_info **port_info, int *count)
 		snprintf(pinfo[i].name, PORT_MAX_NAME_LEN, "%s", plist[i].name);
 		if (plat_port_speed_get(pid, &pinfo[i].speed)) {
 			UC_LOG_DBG("plat_port_speed_get failed");
-			goto err;
+			//goto err;
 		}
 		if (plat_port_duplex_get(pid, &is_full_duplex)) {
 			UC_LOG_DBG("plat_port_duplex_get failed");
-			goto err;
+			//goto err;
 		}
 		pinfo[i].duplex = is_full_duplex;
 		if (plat_port_oper_status_get(pid, &is_up)) {
 			UC_LOG_DBG("plat_port_oper_status_get failed");
-			goto err;
+			//goto err;
 		}
+
 		pinfo[i].carrier_up = is_up;
 		if (plat_port_stats_get(pid, &pinfo[i].stats)) {
 			UC_LOG_DBG("plat_port_stats_get failed");
-			goto err;
+			//goto err;
 		}
 
+		UC_LOG_DBG("continue");
 		if (!plat_port_lldp_peer_info_get(pid,
 						  &pinfo[i].lldp_peer_info)) {
 			pinfo[i].has_lldp_peer_info = 1;
@@ -3636,34 +3634,27 @@ err:
 
 static int plat_state_get(struct plat_state_info *state)
 {
-	size_t i;
+	//size_t i;
 
-	plat_poe_state_get(&state->poe_state);
+	//plat_poe_state_get(&state->poe_state);
 
-	BITMAP_FOR_EACH_BIT_SET(i, plat_state.poe.ports_bmap, MAX_NUM_OF_PORTS)
-	{
-		plat_poe_port_state_get(i, &state->poe_ports_state[i]);
-		BITMAP_SET_BIT(state->poe_ports_bmap, i);
-	}
+	//BITMAP_FOR_EACH_BIT_SET(i, plat_state.poe.ports_bmap, MAX_NUM_OF_PORTS)
+	//{
+	//	plat_poe_port_state_get(i, &state->poe_ports_state[i]);
+	//	BITMAP_SET_BIT(state->poe_ports_bmap, i);
+	//}
 
-	if (plat_system_info_get(&state->system_info))
-		return -1;
+	plat_system_info_get(&state->system_info);
 
-	if (plat_port_info_get(&state->port_info, &state->port_info_count))
-		return -1;
+	plat_port_info_get(&state->port_info, &state->port_info_count);
 
-	if (plat_vlan_info_get(&state->vlan_info, &state->vlan_info_count))
-		return -1;
+	plat_vlan_info_get(&state->vlan_info, &state->vlan_info_count);
 
-	if (plat_learned_mac_addrs_get(&state->learned_mac_list,
-				       &state->learned_mac_list_size))
-		return -1;
+	plat_learned_mac_addrs_get(&state->learned_mac_list,&state->learned_mac_list_size);
 
-	if (plat_state_ieee8021x_coa_global_counters_get(&state->ieee8021x_global_coa_counters))
-		return -1;
+	plat_state_ieee8021x_coa_global_counters_get(&state->ieee8021x_global_coa_counters);
 
-	if (plat_state_gw_ip_get(state))
-		return -1;
+	plat_state_gw_ip_get(state);
 
 	return 0;
 }
@@ -4459,7 +4450,6 @@ static int plat_port_config_apply(struct plat_cfg *cfg)
 		ret = plat_port_admin_state_set(i, cfg->ports[i].state);
 		if (cfg->ports[i].state) {
 			ret |= plat_port_speed_set(i, cfg->ports[i].speed);
-			ret |= plat_port_duplex_set(i, cfg->ports[i].duplex);
 		}
 
 		if (ret)
@@ -4610,44 +4600,27 @@ int plat_config_apply(struct plat_cfg *cfg, uint32_t id)
 	}
 
 	ret = config_vlan_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = plat_port_config_apply(cfg);
 	if (ret)
 		return -1;
 
 	ret = config_unit_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_stp_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_vlan_ipv4_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_portl2_ipv4_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_vlan_dhcp_relay_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_metrics_apply(cfg);
-	if (ret)
-		return -1;
 
 	ret = config_router_apply(cfg);
-	if (ret)
-		return -1;
 
 	if (featsts[FEAT_AAA] == FEATSTS_OK) {
-		if (config_ieee8021x_apply(cfg))
-			return -1;
+		config_ieee8021x_apply(cfg);
 	} else {
 		CFG_LOG_CRIT(
 			"AAA feature is not initialized, skipping configuration");
@@ -4655,8 +4628,6 @@ int plat_config_apply(struct plat_cfg *cfg, uint32_t id)
 
 	/* there is no rollback for password, so this should be run last */
 	ret = config_system_password_apply(cfg);
-	if (ret)
-		return -1;
 
 	plat_syslog_set(cfg->log_cfg, cfg->log_cfg_cnt);
 

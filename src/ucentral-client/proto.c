@@ -105,9 +105,8 @@ static const char *jobj_str_get(const cJSON *obj, const char *name)
 		cJSON_GetObjectItemCaseSensitive(obj, name));
 }
 
-static int proto_port_duplex_to_num(const char *str, uint8_t *duplex)
+/*static int proto_port_duplex_to_num(const char *str, uint8_t *duplex)
 {
-	/* TBD: optimize (move out from hdr? */
 	static struct {
 		const char *str;
 		uint8_t duplex;
@@ -125,7 +124,7 @@ static int proto_port_duplex_to_num(const char *str, uint8_t *duplex)
 	}
 
 	return 1;
-}
+}*/
 
 static int proto_port_speed_to_num(double val, uint32_t *speed)
 {
@@ -1122,7 +1121,7 @@ static int cfg_ethernet_parse(cJSON *ethernet, struct plat_cfg *cfg)
 		struct plat_port tmp_port = {0};
 		size_t ports_selected = 0;
 		cJSON *select_ports;
-		const char *duplex;
+		//const char *duplex;
 		double speed = 0;
 		cJSON *ieee8021x;
 		bool enabled;
@@ -1132,10 +1131,10 @@ static int cfg_ethernet_parse(cJSON *ethernet, struct plat_cfg *cfg)
 
 		select_ports = cJSON_GetObjectItemCaseSensitive(eth, "select-ports");
 		enabled = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(eth, "enabled"));
-		duplex = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(eth, "duplex"));
+		//duplex = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(eth, "duplex"));
 		speed = cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(eth, "speed"));
 
-		if (!duplex || !speed || !select_ports) {
+		if (!speed || !select_ports) {
 			UC_LOG_ERR("Ethernet obj doesn't hold duplex, speed or select-ports fields, parse failed\n");
 			return -1;
 		}
@@ -1164,7 +1163,7 @@ static int cfg_ethernet_parse(cJSON *ethernet, struct plat_cfg *cfg)
 			}
 		}
 
-		proto_port_duplex_to_num(duplex, &tmp_port.duplex);
+		//proto_port_duplex_to_num(duplex, &tmp_port.duplex);
 		proto_port_state_to_num(enabled, &tmp_port.state);
 		proto_port_speed_to_num(speed, &tmp_port.speed);
 

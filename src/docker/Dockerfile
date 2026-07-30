@@ -26,4 +26,5 @@ COPY /schema.jso[n] /etc/
 RUN ldconfig
 RUN ls -l /usr/local/bin/ucentral-client
 
+ENV UC_GATEWAY_ADDRESS=epu.sercomm.com
 ENTRYPOINT ["/usr/local/bin/ucentral-client"]
