@@ -29,6 +29,7 @@ override_dh_install:
 	cp --parents -r lib  ${INSTALL}/usr/local/
 	cp scripts/ucentral-client.sh ${INSTALL}/usr/local/bin/
 	cp scripts/docker-ucentral-client.sh ${INSTALL}/usr/local/bin/
+	cp scripts/export_ucentral_config.py ${INSTALL}/usr/local/bin/
 	# TMP W/A script untill SONIC img POE issues are fixed;
 	# we can't use /usr/local/lib or any other, as it's root-owned;
 	# we can't launch sonic-cli under root, so to make it all simple - copy

@@ -39,6 +39,8 @@ function postStartAction()
 }
 
 start() {
+    chmod +x /usr/local/bin/export_ucentral_config.py
+    /usr/bin/python3 /usr/local/bin/export_ucentral_config.py
 
     # Obtain boot type from kernel arguments
     BOOT_TYPE=`getBootType`

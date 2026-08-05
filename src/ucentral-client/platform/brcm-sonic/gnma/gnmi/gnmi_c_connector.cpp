@@ -359,12 +359,18 @@ int gnmi_gnoi_techsupport_start(struct gnmi_session *gs, char *res_path)
 	grpc::Status status;
 	int path_len;
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
 		return (*gs->stub_gnoi_sonic)
 			->ShowTechsupport(&context, greq, &gres);
 	});
+#else
+	grpc::ClientContext context;
+	status = (*gs->stub_gnoi_sonic)->ShowTechsupport(&context, greq, &gres);
+#endif
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -399,21 +405,19 @@ static int gnmi_jsoni_get_internal(struct gnmi_session *gs, const char *path,
 	gpath = greq.add_path();
 	convertYangPath2ProtoPathNew(path, gpath);
 
-	if (0) {
-		status = invoke_with_token(gs, [&](const std::string &token) {
-			::grpc::ClientContext context;
-			context.AddMetadata("access_token", token);
-			set_deadline_after_us(context, timeout_us);
-			return (*gs->stub)->Get(&context, greq, &gres);
-		});
-	}
-
-	/*Sercomm customized:No encryption when connect gnmi*/
-	if (1) {
+#if 0
+	status = invoke_with_token(gs, [&](const std::string &token) {
 		::grpc::ClientContext context;
+		context.AddMetadata("access_token", token);
 		set_deadline_after_us(context, timeout_us);
-		status = (*gs->stub)->Get(&context, greq, &gres);
-	}
+		return (*gs->stub)->Get(&context, greq, &gres);
+	});
+#else
+	/*Sercomm customized:No encryption when connect gnmi*/
+	::grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub)->Get(&context, greq, &gres);
+#endif
 
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
@@ -516,21 +520,20 @@ int gnmi_jsoni_set(struct gnmi_session *gs, const char *path, char *req,
 	GNMI_C_CONNECTOR_DEBUG_LOG("DEBUG [GNMI SET PAYLOAD]: Path= %s,JSON=%s", path, req);
 	upd->mutable_val()->set_json_ietf_val(std::string(req));
 
-	if (0) {
-		status = invoke_with_token(gs, [&](const std::string &token) {
-			::grpc::ClientContext context;
-			context.AddMetadata("access_token", token);
-			set_deadline_after_us(context, timeout_us);
-			return (*gs->stub)->Set(&context, greq, &gres);
-		});
-	}
-
-	/*Sercomm customized:No encryption when connect gnmi*/
-	if (1) {
+#if 0
+	status = invoke_with_token(gs, [&](const std::string &token) {
 		::grpc::ClientContext context;
+		context.AddMetadata("access_token", token);
 		set_deadline_after_us(context, timeout_us);
-		status = (*gs->stub)->Set(&context, greq, &gres);
-	}
+		return (*gs->stub)->Set(&context, greq, &gres);
+	});
+#else
+	/*Sercomm customized:No encryption when connect gnmi*/
+	::grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub)->Set(&context, greq, &gres);
+#endif
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -604,12 +607,19 @@ int gnmi_gnoi_system_reboot(struct gnmi_session *gs, int64_t timeout_us)
 	gnoi::system::RebootResponse gres;
 	gnoi::system::RebootRequest greq;
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
 		set_deadline_after_us(context, timeout_us);
 		return (*gs->stub_gnoi_system)->Reboot(&context, greq, &gres);
 	});
+#else
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_system)->Reboot(&context, greq, &gres);
+#endif
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -689,6 +699,7 @@ static int __gnmi_gnoi_sonic_cfg_subcmd(struct gnmi_session *gs,
 
 	greq.mutable_input()->set_subcmd(subcmd);
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
@@ -696,6 +707,12 @@ static int __gnmi_gnoi_sonic_cfg_subcmd(struct gnmi_session *gs,
 		return (*gs->stub_gnoi_sonic_cfg_mgmt)
 			->WriteErase(&context, greq, &gres);
 	});
+#else
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_sonic_cfg_mgmt)->WriteErase(&context, greq, &gres);
+#endif
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());

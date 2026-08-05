@@ -517,6 +517,7 @@ static int client_config_read(void)
 	int i;
 	const char *file_devid = UCENTRAL_CONFIG "dev-id";
 
+#if 0
 	/* UGLY W/A for now: get MAC from cert's CN */
 	/* PKI 2.0: Extract CN from operational or birth certificate */
 	const char *cert_for_cn = client.cert ? client.cert : file_cert;
@@ -529,6 +530,25 @@ static int client_config_read(void)
 	if (slash_ptr != NULL) {
     		*slash_ptr = '\0';
 	}
+#else
+
+	/* Sercomm PKI 2.0: Extract SN from Config_DB */
+	FILE *fp = fopen("/var/lib/ucentral/ucentral.cfg", "r");
+	if (fp != NULL) {
+		char line[256];
+		while (fgets(line, sizeof(line), fp)) {
+			if (strncmp(line, "SN=", 3) == 0) {
+				char *sn_value = line + 3;
+				sn_value[strcspn(sn_value, "\n")] = 0;
+				client.serial = strdup(sn_value);
+				break;
+			}
+		}
+		fclose(fp);
+	} else {
+		UC_LOG_ERR("Failed to open config file /var/lib/ucentral/ucentral.cfg\n");
+	}
+#endif
 	UC_LOG_ERR("serial is %s", client.serial);
 
 	/* Make sure MAC in CN is lowercase (either way redirector won't be
@@ -864,6 +884,33 @@ int main(void)
 	size_t password_len;
 	char password[64];
 	struct stat st;
+	char config_line[512];
+	char enable_str[16] = "true";
+	
+	FILE *fp = fopen("/var/lib/ucentral/ucentral.cfg", "r");
+	if (fp != NULL) {
+		while (fgets(config_line, sizeof(config_line), fp)) {
+			if (strncmp(config_line, "ENABLE=", 7) == 0) {
+                                char *val = config_line + 7;
+                                val[strcspn(val, "\n")] = 0;
+				strncpy(enable_str, val, sizeof(enable_str) - 1);
+                        }
+			else if (strncmp(config_line, "REDIRECTOR_URL=", 15) == 0) {
+                                char *url_value = config_line + 15;
+                                url_value[strcspn(url_value, "\n")] = 0;
+                                gw_host = strdup(url_value);
+                        }
+
+		}
+		fclose(fp);
+	} else {
+		UC_LOG_ERR("Failed to open config file /var/lib/ucentral/ucentral.cfg\n");
+	}
+
+	if (strcmp(enable_str, "false") == 0) {
+		UC_LOG_INFO("uCentral Client is disabled in config. Exiting.\n");
+		goto exit;
+	}
 
 	sigthread_create(); /* move signal handling to a dedicated thread */
 
@@ -898,8 +945,7 @@ int main(void)
 		UC_LOG_INFO("PKI 2.0: Enrollment failed, using birth certificate as fallback\n");
 	}
 
-	/* Get gateway address from environment or use default */
-	if ((gw_host = getenv("UC_GATEWAY_ADDRESS"))) {
+	if ((gw_host != NULL)) {
 		char *colon_pos;
 
 		/* Parse host:port format */
@@ -912,22 +958,22 @@ int main(void)
 			client.server = strndup(gw_host, host_len);
 			env_port = atoi(colon_pos + 1);
 			if (env_port == 0) {
-				UC_LOG_ERR("Invalid port in UC_GATEWAY_ADDRESS: %s\n", gw_host);
+				UC_LOG_ERR("Invalid port in CONFIG_DB: %s\n", gw_host);
 				goto exit;
 			}
 			/* Only use port from environment if not already set via command line */
 			if (client.port == 0 || client.port == 15002) {  /* 15002 is the default */
 				client.port = env_port;
 			}
-			UC_LOG_INFO("Using gateway from environment: %s:%u\n", client.server, client.port);
+			UC_LOG_INFO("Using gateway from CONFIG_DB: %s:%u\n", client.server, client.port);
 		} else {
 			/* No colon found - assume just hostname */
 			client.server = strdup(gw_host);
-			UC_LOG_INFO("Using gateway from environment: %s (using port %u)\n",
+			UC_LOG_INFO("Using gateway from CONFIG_DB: %s (using port %u)\n",
 				    client.server, client.port);
 		}
 	} else {
-		UC_LOG_ERR("No gateway address configured. Set UC_GATEWAY_ADDRESS environment variable.\n");
+		UC_LOG_ERR("No gateway address configured. Set CONFIG_DB RedirectorURL variable.\n");
 		/* TODO: Could add discovery service support here if needed */
 		goto exit;
 	}
