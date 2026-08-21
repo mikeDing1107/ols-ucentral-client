@@ -121,6 +121,7 @@ static int gnmi_json_object_set(void *s, const char *path, cJSON *val,
 	return ret;
 }
 
+#if 0
 static int gnmi_setrq_add_object_update(struct gnmi_setrq *rq, char *path,
 					cJSON *val)
 {
@@ -136,6 +137,7 @@ static int gnmi_setrq_add_object_update(struct gnmi_setrq *rq, char *path,
 
 	return ret;
 }
+#endif
 
 int gnma_port_admin_state_set(struct gnma_port_key *port_key, bool up)
 {
@@ -195,7 +197,7 @@ int gnma_port_speed_set(struct gnma_port_key *port_key, const char *speed)
 	char *path;
 	int ret;
 
-	ret = asprintf(&path, "/sonic-port:sonic-port/PORT/PORT_LIST[ifname=%s]",
+	ret = asprintf(&path, "/sonic-port:sonic-port/PORT/PORT_LIST[name=%s]",
 		       port_key->name);
 	if (ret == -1) {
 		ret = GNMA_ERR_COMMON;
@@ -226,12 +228,12 @@ int gnma_port_speed_set(struct gnma_port_key *port_key, const char *speed)
 		goto err_val_alloc;
 	}
 
-	if (!cJSON_AddStringToObject(val, "ifname", port_key->name)) {
+	if (!cJSON_AddStringToObject(val, "name", port_key->name)) {
 		ret = GNMA_ERR_COMMON;
 		goto err_val_set;
 	}
 
-	if (!cJSON_AddStringToObject(val, "speed", speed)) {
+	if (!cJSON_AddNumberToObject(val, "speed", atoi(speed))) {
 		ret = GNMA_ERR_COMMON;
 		goto err_val_set;
 	}
@@ -557,7 +559,7 @@ int gnma_port_oper_status_get(struct gnma_port_key *port_key, bool *is_up)
 	int ret;
 
 	ret = asprintf(&gpath,
-		       "/openconfig-interfaces:interfaces/interface[name=%s]/openconfig-if-ethernet:ethernet/state/openconfig-interfaces-ext:reason",
+		       "/openconfig-interfaces:interfaces/interface[name=%s]/state/admin-status",
 		       port_key->name);
 	if (ret == -1) {
 		ret = GNMA_ERR_COMMON;
@@ -578,11 +580,11 @@ int gnma_port_oper_status_get(struct gnma_port_key *port_key, bool *is_up)
 		goto err_gnmi_parse;
 	}
 
-	oper = cJSON_GetObjectItemCaseSensitive(parsed_res, "openconfig-interfaces-ext:reason");
+	oper = cJSON_GetObjectItemCaseSensitive(parsed_res, "openconfig-interfaces:admin-status");
 	if (!oper || !cJSON_GetStringValue(oper))
 		goto err_gnmi_get_obj;
 
-	*is_up = (strcmp(cJSON_GetStringValue(oper), "OPER_UP") == 0);
+	*is_up = (strcmp(cJSON_GetStringValue(oper), "UP") == 0);
 
 err_gnmi_get_obj:
 	cJSON_Delete(parsed_res);
@@ -601,7 +603,7 @@ int gnma_port_speed_get(struct gnma_port_key *port_key, char *speed,
 	char *gpath;
 	int ret;
 
-	ret = asprintf(&gpath, "/sonic-port:sonic-port/PORT/PORT_LIST[ifname=%s]/speed",
+	ret = asprintf(&gpath, "/sonic-port:sonic-port/PORT/PORT_LIST[name=%s]/speed",
 		       port_key->name);
 	if (ret == -1) {
 		ret = GNMA_ERR_COMMON;
@@ -623,10 +625,10 @@ int gnma_port_speed_get(struct gnma_port_key *port_key, char *speed,
 	}
 
 	port_speed = cJSON_GetObjectItemCaseSensitive(parsed_res, "sonic-port:speed");
-	if (!port_speed || !cJSON_GetStringValue(port_speed))
+	if (!port_speed || !cJSON_IsNumber(port_speed))
 		goto err_gnmi_get_obj;
 
-	strncpy(speed, cJSON_GetStringValue(port_speed), str_len);
+	snprintf(speed, str_len, "%.0f", cJSON_GetNumberValue(port_speed));
 
 err_gnmi_get_obj:
 	cJSON_Delete(parsed_res);
@@ -1943,6 +1945,7 @@ int gnma_vlan_create(struct gnma_change *c, uint16_t vid) /* TODO: ret oid */
 	cJSON *root;
 	cJSON *val, *arr;
 	char *path;
+	(void)c;
 
 
 	ret = asprintf(&path, "/sonic-vlan:sonic-vlan/VLAN/VLAN_LIST");
@@ -1986,7 +1989,8 @@ int gnma_vlan_create(struct gnma_change *c, uint16_t vid) /* TODO: ret oid */
 		goto err_val_set;
 	}
 
-	ret = gnmi_setrq_add_object_update((struct gnmi_setrq *)c, path, root);
+	//ret = gnmi_setrq_add_object_update((struct gnmi_setrq *)c, path, root);
+	ret = gnmi_json_object_set(main_switch, path, root, DEFAULT_TIMEOUT_US);
 	if (ret) {
 		ret = GNMA_ERR_COMMON;
 		goto err_req_fail;
@@ -2010,15 +2014,18 @@ int gnma_vlan_member_remove(struct gnma_change *c, uint16_t vid,
 	int ret;
 	char *path;
 
+	(void)c;
+
 	sprintf(&vlan_name[0], "Vlan%u", vid);
-	ret = asprintf(&path, "/sonic-vlan:sonic-vlan/VLAN_MEMBER/VLAN_MEMBER_LIST[name=%s][ifname=%s]",
+	ret = asprintf(&path, "/sonic-vlan:sonic-vlan/VLAN_MEMBER/VLAN_MEMBER_LIST[name=%s][port=%s]",
 			&vlan_name[0], port_key->name);
 	if (ret == -1) {
 		ret = GNMA_ERR_COMMON;
 		goto err_path_alloc;
 	}
 
-	ret = gnmi_setrq_add_delete((struct gnmi_setrq *)c, path);
+	//ret = gnmi_setrq_add_delete((struct gnmi_setrq *)c, path);
+	ret = gnmi_jsoni_del(main_switch, path, DEFAULT_TIMEOUT_US);
 	if (ret) {
 		ret = GNMA_ERR_COMMON;
 		goto err_req_fail;
@@ -2031,6 +2038,72 @@ err_path_alloc:
 	return ret;
 }
 
+int gnma_vlan_member_ip_remove(struct gnma_port_key *port_key)
+{
+	char *buf = NULL;
+    	char *path;
+    	int ret = GNMA_ERR_COMMON;
+    	cJSON *root = NULL, *addr_arr = NULL, *ip_obj = NULL, *config_obj = NULL;
+    	char *ip_str = NULL;
+    	cJSON *prefix_len = NULL;
+	char get_path[256];
+
+	sprintf(&get_path[0], "/openconfig-interfaces:interfaces/interface[name=%s]/subinterfaces/subinterface[index=0]/ipv4/addresses/address", port_key->name);
+
+	if (gnmi_jsoni_get_alloc(main_switch, &get_path[0], &buf, 0, DEFAULT_TIMEOUT_US)) {
+        	GNMI_C_CONNECTOR_DEBUG_LOG("Failed to get IP for interface %s", port_key->name);
+        	return 0;
+    	}
+
+	root = cJSON_Parse(buf);
+    	ZFREE(buf);
+    	if (!root) 
+		goto out;
+
+	addr_arr = cJSON_GetObjectItemCaseSensitive(root, "openconfig-if-ip:address");
+	if (!addr_arr || !cJSON_IsArray(addr_arr) || cJSON_GetArraySize(addr_arr) == 0) {
+		GNMI_C_CONNECTOR_DEBUG_LOG("No IPv4 address found on %s", port_key->name);
+		ret = 0;
+		goto out;
+	}
+
+	ip_obj = cJSON_GetArrayItem(addr_arr, 0);
+
+	ip_str = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(ip_obj, "ip"));
+	if (!ip_str) {
+		GNMI_C_CONNECTOR_DEBUG_LOG("IP string not found in response");
+		ret = 0;
+		goto out;
+	}
+
+	config_obj = cJSON_GetObjectItemCaseSensitive(ip_obj, "config");
+	if (config_obj) {
+		prefix_len = cJSON_GetObjectItemCaseSensitive(config_obj, "prefix-length");
+	}
+
+	GNMI_C_CONNECTOR_DEBUG_LOG("Found IP: %s (prefix-length: %d) on %s",
+			   ip_str, prefix_len ? prefix_len->valueint : -1, port_key->name);
+
+	ret = asprintf(&path, "/openconfig-interfaces:interfaces/interface[name=%s]/subinterfaces/subinterface[index=0]/ipv4/addresses/address[ip=%s]", port_key->name, ip_str);
+	if (ret == -1 || !path) {
+		ret = GNMA_ERR_COMMON;
+		goto out;
+	}
+
+	if (gnmi_jsoni_del(main_switch, path, DEFAULT_TIMEOUT_US)) {
+		ret = GNMA_ERR_COMMON;
+		goto out;
+	}
+
+	ret = 0; 
+
+out:
+	if (path) free(path);
+    	if (root) cJSON_Delete(root);
+    		return ret;
+
+}
+
 int gnma_vlan_member_create(struct gnma_change *c, uint16_t vid,
 			    struct gnma_port_key *port_key, bool tagged)
 {
@@ -2041,6 +2114,7 @@ int gnma_vlan_member_create(struct gnma_change *c, uint16_t vid,
 	char *path;
 
 
+	(void)c;
 	ret = asprintf(&path, "/sonic-vlan:sonic-vlan/VLAN_MEMBER/VLAN_MEMBER_LIST");
 	if (ret == -1) {
 		ret = GNMA_ERR_COMMON;
@@ -2077,7 +2151,7 @@ int gnma_vlan_member_create(struct gnma_change *c, uint16_t vid,
 		goto err_val_set;
 	}
 
-	if (!cJSON_AddStringToObject(val, "ifname", port_key->name)) {
+	if (!cJSON_AddStringToObject(val, "port", port_key->name)) {
 		ret = GNMA_ERR_COMMON;
 		goto err_val_set;
 	}
@@ -2088,7 +2162,8 @@ int gnma_vlan_member_create(struct gnma_change *c, uint16_t vid,
 		goto err_val_set;
 	}
 
-	ret = gnmi_setrq_add_object_update((struct gnmi_setrq *)c, path, root);
+	//ret = gnmi_setrq_add_object_update((struct gnmi_setrq *)c, path, root);
+	ret = gnmi_json_object_set(main_switch, path, root, DEFAULT_TIMEOUT_US);
 	if (ret) {
 		ret = GNMA_ERR_COMMON;
 		goto err_req_fail;
@@ -2144,7 +2219,7 @@ int gnma_vlan_member_bmap_get(struct gnma_vlan_member_bmap *vlan_mbr)
 			continue;
 		}
 
-		member_name = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(member, "ifname"));
+		member_name = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(member, "port"));
 		if (!member_name) {
 			goto out;
 		}
@@ -2265,9 +2340,11 @@ int gnma_port_list_get(uint16_t *list_size, struct gnma_port_key *port_key_list)
 		goto err_gnmi_get;
 	}
 
+	GNMI_C_CONNECTOR_DEBUG_LOG("DEBUG: RAW buf content: [%s]\n", buf);
 	parsed_res = cJSON_Parse(buf);
 	ZFREE(buf);
 	if (!parsed_res) {
+		GNMI_C_CONNECTOR_DEBUG_LOG("DEBUG: cJSON_Parse FAILED! buf content: [%s]\n", buf); 
 		ret = GNMA_ERR_COMMON;
 		goto err_gnmi_parse;
 	}
@@ -2281,7 +2358,7 @@ int gnma_port_list_get(uint16_t *list_size, struct gnma_port_key *port_key_list)
 
 	ports_num = 0;
 	cJSON_ArrayForEach(iter, ports_arr) {
-		port_name = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(iter, "ifname"));
+		port_name = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(iter, "name"));
 		if (!port_name) {
 			ret = GNMA_ERR_COMMON;
 			goto err_result_fill;
@@ -2428,11 +2505,11 @@ int gnma_metadata_get(struct gnma_metadata *md)
 	 * one. subject to change
 	 */
 	static char path_mac[] =
-		"/sonic-device-metadata:sonic-device-metadata/DEVICE_METADATA/DEVICE_METADATA_LIST[name=localhost]/mac";
+		"/sonic-device-metadata:sonic-device_metadata/DEVICE_METADATA/localhost/mac";
 	static char path_hwsku[] =
-		"/sonic-device-metadata:sonic-device-metadata/DEVICE_METADATA/DEVICE_METADATA_LIST[name=localhost]/hwsku";
+		"/sonic-device-metadata:sonic-device_metadata/DEVICE_METADATA/localhost/hwsku";
 	static char path_platform[] =
-		"/sonic-device-metadata:sonic-device-metadata/DEVICE_METADATA/DEVICE_METADATA_LIST[name=localhost]/platform";
+		"/sonic-device-metadata:sonic-device_metadata/DEVICE_METADATA/localhost/platform";
 	char *buf = 0;
 	cJSON *root_mac = 0, *root_hwsku = 0, *root_platform = 0, *val = 0;
 	int ret = GNMA_ERR_COMMON;
@@ -2458,24 +2535,30 @@ int gnma_metadata_get(struct gnma_metadata *md)
 	root_platform = cJSON_Parse(buf);
 	ZFREE(buf);
 
-	val = cJSON_GetObjectItemCaseSensitive(
-		root_platform, "sonic-device-metadata:platform");
-	if (!cJSON_IsString(val))
-		goto err;
-	snprintf(md->hwsku, sizeof md->hwsku, "%s", cJSON_GetStringValue(val));
+	GNMI_C_CONNECTOR_DEBUG_LOG("plat JSON Response: %s\n", cJSON_Print(root_platform));
 
-	val = cJSON_GetObjectItemCaseSensitive(root_hwsku,
-					       "sonic-device-metadata:hwsku");
+	val = cJSON_GetObjectItemCaseSensitive(
+		root_platform, "sonic-device_metadata:platform");
 	if (!cJSON_IsString(val))
 		goto err;
-	snprintf(md->platform, sizeof md->platform, "%s",
+	snprintf(md->platform, sizeof md->platform, "%s", cJSON_GetStringValue(val));
+
+	GNMI_C_CONNECTOR_DEBUG_LOG("sku JSON Response: %s\n", cJSON_Print(root_hwsku));
+	val = cJSON_GetObjectItemCaseSensitive(root_hwsku,
+					       "sonic-device_metadata:hwsku");
+	if (!cJSON_IsString(val))
+		goto err;
+	snprintf(md->hwsku, sizeof md->hwsku, "%s",
 		 cJSON_GetStringValue(val));
 
+	GNMI_C_CONNECTOR_DEBUG_LOG("mac JSON Response: %s\n", cJSON_Print(root_mac));
 	val = cJSON_GetObjectItemCaseSensitive(root_mac,
-					       "sonic-device-metadata:mac");
+					       "sonic-device_metadata:mac");
 	if (!cJSON_IsString(val))
 		goto err;
 	snprintf(md->mac, sizeof md->mac, "%s", cJSON_GetStringValue(val));
+
+	GNMI_C_CONNECTOR_DEBUG_LOG("get success");
 
 	ret = 0;
 err:
@@ -3059,8 +3142,7 @@ int gnma_vlan_erif_attr_pref_list_get(uint16_t vid,
 	memset(prefix_list, 0, (*list_size) * sizeof(*prefix_list));
 
 	sprintf(&gpath[0],
-		"/openconfig-interfaces:interfaces/interface[name=Vlan%u]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses",
-		vid);
+		"/sonic-vlan:sonic-vlan/VLAN_INTERFACE/VLAN_INTERFACE_LIST");
 	ret = gnmi_jsoni_get_alloc(main_switch, &gpath[0], &gbuf, 0,
 				   DEFAULT_TIMEOUT_US);
 	if (ret) {
@@ -3074,24 +3156,32 @@ int gnma_vlan_erif_attr_pref_list_get(uint16_t vid,
 		goto out;
 	}
 
-	item = cJSON_GetObjectItemCaseSensitive(parsed, "openconfig-if-ip:addresses");
-	item_arr = cJSON_GetObjectItemCaseSensitive(item, "address");
-	if (!item_arr) {
+	item_arr = cJSON_GetObjectItemCaseSensitive(parsed, "sonic-vlan:VLAN_INTERFACE_LIST");
+	if (!item_arr || !cJSON_IsArray(item_arr)) {
 		*list_size = 0;
 		goto out;
 	}
 
 	addr_num = 0;
 	cJSON_ArrayForEach(item_iter, item_arr) {
-		item = cJSON_GetObjectItemCaseSensitive(item_iter, "config");
-		addr_str = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(item, "ip"));
+		item = cJSON_GetObjectItemCaseSensitive(item_iter, "vlanid");
+		if (!item || !cJSON_IsNumber(item))
+			continue;
+
+		if ((int)cJSON_GetNumberValue(item) != vid)
+			continue;
+
+		item = cJSON_GetObjectItemCaseSensitive(item_iter, "ip-prefix");
+		addr_str = cJSON_GetStringValue(item);
 		if (!addr_str)
 			continue;
 
-		if (inet_pton(AF_INET, addr_str, &in_addr_buf) != 1)
+		if (sscanf(addr_str, "%[^/]/%d", gpath, &in_addr_len_buf) != 2)
 			continue;
 
-		in_addr_len_buf = cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(item, "prefix-length"));
+		if (inet_pton(AF_INET, gpath, &in_addr_buf) != 1)
+			continue;
+
 		if (in_addr_len_buf > 32 || in_addr_len_buf < 0)
 			continue;
 
@@ -3142,30 +3232,23 @@ int gnma_vlan_erif_attr_pref_update(uint16_t vid, uint16_t list_size,
 	char addrbuf[64];
 	char gpath[256];
 
-	sprintf(&gpath[0], "/openconfig-interfaces:interfaces/interface[name=Vlan%u]/openconfig-vlan:routed-vlan", vid);
+	sprintf(&gpath[0], "/sonic-vlan:sonic-vlan/VLAN_INTERFACE/VLAN_INTERFACE_LIST");
 
 	root = cJSON_CreateObject();
 	if (!root)
 		goto out;
 
-	/* This is safe to check only last state of obj:
-	 * cJSON_AddObjectToObject(NULL) == NULL
-	 */
-	obj = cJSON_AddObjectToObject(root, "openconfig-interfaces:routed-vlan");
-	obj = cJSON_AddObjectToObject(obj, "openconfig-if-ip:ipv4");
-	obj = cJSON_AddObjectToObject(obj, "addresses");
-	arr = cJSON_AddArrayToObject(obj, "address");
+	arr = cJSON_AddArrayToObject(root, "sonic-vlan:VLAN_INTERFACE_LIST");
 	if (!arr)
 		goto out;
 
 	for (i = 0; i < list_size; i++) {
 		obj = cJSON_CreateObject();
 		if (!cJSON_AddItemToArray(arr, obj)) {
-			cJSON_Delete(obj); /* Bcs root is not referenced */
+			cJSON_Delete(obj);
 			goto out;
 		}
 
-		/* v6 is not supported for now */
 		if (pref[i].ip.v != AF_INET)
 			goto out;
 
@@ -3173,16 +3256,19 @@ int gnma_vlan_erif_attr_pref_update(uint16_t vid, uint16_t list_size,
 			       &addrbuf[0], sizeof(addrbuf)))
 			goto out;
 
-		if (!cJSON_AddStringToObject(obj, "ip", &addrbuf[0]))
+		sprintf(&addrbuf[strlen(&addrbuf[0])], "/%d",
+			pref[i].prefix_len);
+
+		if (!cJSON_AddNumberToObject(obj, "vlanid", vid))
 			goto out;
 
-		obj = cJSON_AddObjectToObject(obj, "config");
-
-		if (!cJSON_AddStringToObject(obj, "ip", &addrbuf[0]))
+		if (!cJSON_AddStringToObject(obj, "ip-prefix", &addrbuf[0]))
 			goto out;
 
-		if (!cJSON_AddNumberToObject(obj, "prefix-length",
-					     pref[i].prefix_len))
+		if (!cJSON_AddStringToObject(obj, "scope", "global"))
+			goto out;
+
+		if (!cJSON_AddStringToObject(obj, "family", "IPv4"))
 			goto out;
 	}
 
@@ -3207,8 +3293,8 @@ int gnma_vlan_erif_attr_pref_delete(uint16_t vid, struct gnma_ip_prefix *pref)
 	if (!inet_ntop(AF_INET, &pref->ip.u.v4, &addrbuf[0], sizeof(addrbuf)))
 		return GNMA_ERR_COMMON;
 
-	sprintf(&gpath[0], "/openconfig-interfaces:interfaces/interface[name=Vlan%u]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=%s]",
-		vid, &addrbuf[0]);
+	sprintf(&gpath[0], "/sonic-vlan:sonic-vlan/VLAN_INTERFACE/VLAN_INTERFACE_LIST[vlanid=%u][ip-prefix=%s/%d]",
+		vid, &addrbuf[0], pref->prefix_len);
 
 	if (gnmi_jsoni_del(main_switch, gpath, DEFAULT_TIMEOUT_US))
 		return GNMA_ERR_COMMON;
@@ -3222,6 +3308,7 @@ int gnma_portl2_erif_attr_pref_list_get(struct gnma_port_key *port_key,
 					uint16_t *list_size,
 					struct gnma_ip_prefix *prefix_list)
 {
+#if 0
 	cJSON *parsed = NULL, *item_arr, *item, *item_iter;
 	struct in_addr in_addr_buf;
 	int in_addr_len_buf;
@@ -3283,6 +3370,13 @@ out:
 	cJSON_Delete(parsed);
 	ZFREE(gbuf);
 	return err;
+#else
+	(void)port_key;
+	(void)prefix_list;
+	if (list_size)
+		*list_size = 0;
+	return 0;
+#endif
 }
 
 int gnma_portl2_erif_attr_pref_update(struct gnma_port_key *port_key,
@@ -3473,6 +3567,7 @@ err_path_alloc:
 int gnma_vlan_dhcp_relay_server_list_get(uint16_t vid, size_t *list_size,
 					 struct gnma_ip *ip_list)
 {
+#if 0
 	cJSON *parsed_res, *addr_arr, *addr;
 	char vlan_name[32];
 	uint16_t arr_len;
@@ -3539,6 +3634,13 @@ err_gnmi_get:
 	free(gpath);
 err_path_alloc:
 	return ret;
+#else
+	(void)vid;
+	(void)ip_list;
+	if (list_size)
+		*list_size = 0;
+	return 0;
+#endif
 }
 
 int gnma_vlan_dhcp_relay_ciruit_id_set(uint16_t vid,
@@ -3601,6 +3703,7 @@ err_path_alloc:
 int gnma_vlan_dhcp_relay_ciruit_id_get(uint16_t vid,
 				       gnma_dhcp_relay_circuit_id_t *id)
 {
+#if 0
 	cJSON *parsed_res, *circ_id;
 	const char *circ_id_str;
 	char vlan_name[32];
@@ -3664,6 +3767,12 @@ err_gnmi_get:
 	free(gpath);
 err_path_alloc:
 	return ret;
+#else
+	(void)vid;
+	if (id)
+		*id = GNMA_DHCP_RELAY_CIRCUIT_ID_H_P;
+	return 0;
+#endif
 }
 
 int gnma_vlan_dhcp_relay_policy_action_set(uint16_t vid,
@@ -3728,6 +3837,7 @@ err_path_alloc:
 int gnma_vlan_dhcp_relay_policy_action_get(uint16_t vid,
 					   gnma_dhcp_relay_policy_action_type_t *act)
 {
+#if 0
 	cJSON *parsed_res, *policy_act;
 	const char *policy_act_str;
 	char vlan_name[32];
@@ -3791,6 +3901,12 @@ err_gnmi_get:
 	free(gpath);
 err_path_alloc:
 	return ret;
+#else
+	(void)vid;
+	if (act)
+		*act = GNMA_DHCP_RELAY_POLICY_ACTION_DISCARD;
+	return 0;
+#endif
 }
 
 int gnma_vlan_dhcp_relay_max_hop_cnt_set(uint16_t vid, uint8_t max_hop_cnt)
@@ -3837,6 +3953,7 @@ err_path_alloc:
 
 int gnma_vlan_dhcp_relay_max_hop_cnt_get(uint16_t vid, uint8_t *max_hop_cnt)
 {
+#if 0
 	cJSON *parsed_res, *hop_cnt;
 	char vlan_name[32];
 	char *buf = 0;
@@ -3883,6 +4000,12 @@ err_gnmi_get:
 	free(gpath);
 err_path_alloc:
 	return ret;
+#else
+	(void)vid;
+	if (max_hop_cnt)
+		*max_hop_cnt = 0;
+	return 0;
+#endif
 }
 
 
@@ -4036,6 +4159,11 @@ int gnma_route_list_get(uint16_t vr_id, uint32_t *list_size,
 	/* "{\"sonic-static-route:STATIC_ROUTE_LIST\":[{\"blackhole\":\"true\",\"prefix\":\"5.5.5.0/24\",\"vrf-name\":\"default\"}]}" */
 	root = cJSON_Parse(buf);
 	ZFREE(buf);
+	if (!root)
+	{
+		ret = GNMA_OK;
+        	goto out;
+	}
 	arr = cJSON_GetObjectItemCaseSensitive(root, "sonic-static-route:STATIC_ROUTE_LIST");
 
 	cnt = 0;
@@ -4249,6 +4377,7 @@ out:
 
 int gnma_stp_mode_get(gnma_stp_mode_t *mode, struct gnma_stp_attr *attr)
 {
+#if 0
 	char *gpath = "/sonic-spanning-tree:sonic-spanning-tree";
 	int err = GNMA_ERR_COMMON;
 	cJSON *root = NULL, *obj;
@@ -4305,6 +4434,13 @@ int gnma_stp_mode_get(gnma_stp_mode_t *mode, struct gnma_stp_attr *attr)
 out:
 	cJSON_Delete(root);
 	return err;
+#else
+	if (mode)
+		*mode = GNMA_STP_MODE_NONE;
+	if (attr)
+		memset(attr, 0, sizeof(*attr));
+	return 0;
+#endif
 }
 
 /* This is control plane config instead os SAI's dataplane STP objcst
@@ -4574,6 +4710,7 @@ int gnma_stp_vid_set(uint16_t vid, struct gnma_stp_attr *attr)
 
 int gnma_stp_vid_bulk_get(struct gnma_stp_attr *list, ssize_t size)
 {
+#if 0
 	char *gpath = "/sonic-spanning-tree:sonic-spanning-tree/STP_VLAN/STP_VLAN_LIST";
 	cJSON *root = NULL, *obj, *arr, *iter;
 	int err = GNMA_ERR_COMMON, ret;
@@ -4607,6 +4744,11 @@ int gnma_stp_vid_bulk_get(struct gnma_stp_attr *list, ssize_t size)
 out:
 	cJSON_Delete(root);
 	return err;
+#else
+	if (list && size > 0)
+		memset(list, 0, size * sizeof(*list));
+	return 0;
+#endif
 }
 
 int gnma_ieee8021x_system_auth_control_set(bool is_enabled)
@@ -5632,6 +5774,7 @@ err_gnmi_get:
 	return ret;
 }
 
+#if 0
 static int __gnma_igmp_disable(uint16_t vid)
 {
 	char *resource[] = {
@@ -5743,9 +5886,11 @@ err:
 	*interface = NULL;
 	return GNMA_ERR_COMMON;
 }
+#endif
 
 int gnma_igmp_snooping_set(uint16_t vid, struct gnma_igmp_snoop_attr *attr)
 {
+#if 0
 	char *gpath = "/openconfig-network-instance:network-instances/network-instance[name=default]/protocols/protocol[identifier=IGMP_SNOOPING][name=IGMP-SNOOPING]/openconfig-network-instance-deviation:igmp-snooping";
 	bool enabled = attr->enabled || attr->querier_enabled;
 	cJSON *root, *config, *interface;
@@ -5794,11 +5939,17 @@ int gnma_igmp_snooping_set(uint16_t vid, struct gnma_igmp_snoop_attr *attr)
 err:
 	cJSON_Delete(root);
 	return ret;
+#else
+	(void)vid;
+    	(void)attr;
+    	return 0;
+#endif
 }
 
 int gnma_igmp_static_groups_set(uint16_t vid, size_t num_groups,
 				struct gnma_igmp_static_group_attr *groups)
 {
+#if 0
 	char *gpath = "/openconfig-network-instance:network-instances/network-instance[name=default]/protocols/protocol[identifier=IGMP_SNOOPING][name=IGMP-SNOOPING]/openconfig-network-instance-deviation:igmp-snooping";
 	cJSON *root, *mcast_groups, *group, *port_list, *port, *interface;
 	char ip_addr[] = {"255.255.255.255"};
@@ -5864,11 +6015,18 @@ int gnma_igmp_static_groups_set(uint16_t vid, size_t num_groups,
 err:
 	cJSON_Delete(root);
 	return ret;
+#else
+	(void)vid;
+    	(void)num_groups;
+    	(void)groups;
+    	return 0;
+#endif
 }
 
 int gnma_igmp_iface_groups_get(struct gnma_port_key *iface,
 			       char *out_buf, size_t *out_buf_size)
 {
+#if 0
 	char *gpath, *buf = NULL;
 	cJSON *root, *groups;
 	size_t json_len = 0;
@@ -5925,6 +6083,14 @@ err_buf_print:
 err_gnmi_get_obj:
 	cJSON_Delete(root);  /* only need to free root */
 	return ret;
+#else
+	(void)iface;
+    	if (out_buf)
+        	out_buf[0] = 0;
+    	if (out_buf_size)
+        	*out_buf_size = 0;
+    	return 0;
+#endif
 }
 
 int gnma_ip_iface_addr_get(struct gnma_vlan_ip_t *address_list, size_t *list_size)

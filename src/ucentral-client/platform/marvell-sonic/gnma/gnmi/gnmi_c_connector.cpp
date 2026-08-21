@@ -47,6 +47,62 @@ static void set_deadline_after_us(grpc::ClientContext &c, int64_t us)
 	}
 }
 
+/* Add for new sonic yang version 0.7.0 */
+static int convertYangPath2ProtoPathNew(const char *yangPath, ::gnmi::Path *path)
+{
+    std::string pathStr(yangPath);
+    if (!pathStr.empty() && pathStr[0] == '/') {
+        pathStr = pathStr.substr(1);
+    }
+
+    size_t colonPos = pathStr.find(':');
+    if (colonPos != std::string::npos) {
+        path->set_origin(pathStr.substr(0, colonPos));
+        pathStr = pathStr.substr(colonPos + 1);
+    }
+
+    std::stringstream ss(pathStr);
+    std::string elemName;
+
+    while (std::getline(ss, elemName, '/')) {
+        if (!elemName.empty()) {
+            auto *elem = path->add_elem();
+            size_t bracketPos = elemName.find('[');
+
+            if (bracketPos != std::string::npos) {
+                std::string pureName = elemName.substr(0, bracketPos);
+                elem->set_name(pureName);
+
+                std::string keysPart = elemName.substr(bracketPos);
+
+                size_t currentPos = 0;
+                while (currentPos < keysPart.length()) {
+                    size_t startBracket = keysPart.find('[', currentPos);
+                    if (startBracket == std::string::npos) break;
+
+                    size_t equalPos = keysPart.find('=', startBracket);
+                    if (equalPos == std::string::npos) break;
+
+                    size_t endBracket = keysPart.find(']', equalPos);
+                    if (endBracket == std::string::npos) break;
+
+                    std::string keyName = keysPart.substr(startBracket + 1, equalPos - startBracket - 1);
+                    std::string keyValue = keysPart.substr(equalPos + 1, endBracket - equalPos - 1);
+
+                    (*elem->mutable_key())[keyName] = keyValue;
+
+                    currentPos = endBracket + 1;
+                }
+            } else {
+                elem->set_name(elemName);
+            }
+        }
+    }
+
+    return 1;
+}
+
+#if 0
 static int convertYangPath2ProtoPath(const char *yangPath, ::gnmi::Path *path)
 {
 	int strLen = strlen(yangPath);
@@ -78,6 +134,7 @@ static int convertYangPath2ProtoPath(const char *yangPath, ::gnmi::Path *path)
 	free(tmpPath);
 	return(ret);
 }
+#endif
 
 class SyncCertificateVerifier
     : public grpc::experimental::ExternalCertificateVerifier {
@@ -102,6 +159,7 @@ struct Token {
 	int err;
 };
 
+#if 0
 static Token sonic_jwt_authenticate(gnoi::sonic::SonicService::Stub *stub,
 				    const char *username, const char *password,
 				    int64_t timeout_us)
@@ -142,6 +200,7 @@ static Token sonic_jwt_authenticate(gnoi::sonic::SonicService::Stub *stub,
 	GNMI_C_CONNECTOR_DEBUG_LOG("Access token %s", result.token.c_str());
 	return result;
 }
+#endif
 
 struct gnmi_session {
 	std::unique_ptr<gnmi::gNMI::Stub> *stub;
@@ -166,12 +225,13 @@ struct gnmi_session *gnmi_session_create(char *host,
 					 char *username, char *password)
 {
 	struct gnmi_session *gs;
-	auto verifier = grpc::experimental::ExternalCertificateVerifier::Create<SyncCertificateVerifier>();
+	/*auto verifier = grpc::experimental::ExternalCertificateVerifier::Create<SyncCertificateVerifier>();
 	grpc::experimental::TlsChannelCredentialsOptions options;
 	options.set_verify_server_certs(false);
 	options.set_certificate_verifier(verifier);
 	options.set_check_call_host(false);
-	auto credentials = grpc::experimental::TlsCredentials(options);
+	auto credentials = grpc::experimental::TlsCredentials(options);*/
+	auto credentials = grpc::InsecureChannelCredentials();
 
 	gs = new gnmi_session{};
 	gs->auth_timeout_us = 10 * 1000000; /* 10 seconds */
@@ -216,6 +276,7 @@ struct gnmi_session *gnmi_session_create(char *host,
 
 static thread_local std::string g_token;
 
+#if 0
 template <class F>
 static ::grpc::Status invoke_with_token(gnmi_session *gs, F &&f)
 {
@@ -238,6 +299,7 @@ static ::grpc::Status invoke_with_token(gnmi_session *gs, F &&f)
 	g_token = move(t.token);
 	return f(g_token);
 }
+#endif
 
 struct gnmi_setrq {
 	::gnmi::SetRequest req;
@@ -259,7 +321,7 @@ int gnmi_setrq_add_jsoni_update(gnmi_setrq *rq, const char *path,
 	::gnmi::Update *upd = rq->req.add_update();
 	if (!upd)
 		return -1;
-	convertYangPath2ProtoPath(path, upd->mutable_path());
+	convertYangPath2ProtoPathNew(path, upd->mutable_path());
 	upd->mutable_val()->set_json_ietf_val(req);
 	return 0;
 }
@@ -270,7 +332,7 @@ int gnmi_setrq_add_jsoni_replace(gnmi_setrq *rq, const char *path,
 	::gnmi::Update *upd = rq->req.add_replace();
 	if (!upd)
 		return -1;
-	convertYangPath2ProtoPath(path, upd->mutable_path());
+	convertYangPath2ProtoPathNew(path, upd->mutable_path());
 	upd->mutable_val()->set_json_ietf_val(req);
 	return 0;
 }
@@ -280,7 +342,7 @@ int gnmi_setrq_add_delete(gnmi_setrq *rq, const char *path)
 	::gnmi::Path *del = rq->req.add_delete_();
 	if (!del)
 		return -1;
-	convertYangPath2ProtoPath(path, del);
+	convertYangPath2ProtoPathNew(path, del);
 	return 0;
 }
 
@@ -291,11 +353,14 @@ int gnmi_setrq_execute(gnmi_session *gs, const gnmi_setrq *rq,
 	::grpc::ClientContext context;
 	::gnmi::SetResponse res;
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		::grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
 		return (*gs->stub)->Set(&context, rq->req, &res);
 	});
+#endif
+	status = (*gs->stub)->Set(&context, rq->req, &res);
 
 	if (sts) {
 		sts->ok = status.ok();
@@ -314,12 +379,18 @@ int gnmi_gnoi_techsupport_start(struct gnmi_session *gs, char *res_path)
 	grpc::Status status;
 	int path_len;
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
 		return (*gs->stub_gnoi_sonic)
 			->ShowTechsupport(&context, greq, &gres);
 	});
+#else
+	grpc::ClientContext context;
+	status = (*gs->stub_gnoi_sonic)->ShowTechsupport(&context, greq, &gres);
+#endif
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -352,18 +423,26 @@ static int gnmi_jsoni_get_internal(struct gnmi_session *gs, const char *path,
 
 	greq.set_encoding(::gnmi::JSON_IETF);
 	gpath = greq.add_path();
-	convertYangPath2ProtoPath(path, gpath);
+	convertYangPath2ProtoPathNew(path, gpath);
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		::grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
 		set_deadline_after_us(context, timeout_us);
 		return (*gs->stub)->Get(&context, greq, &gres);
 	});
+#else
+	/*Sercomm customized:No encryption when connect gnmi*/
+	::grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub)->Get(&context, greq, &gres);
+#endif
 
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+		GNMI_C_CONNECTOR_DEBUG_LOG("Error Message: %s", status.error_message().c_str());
 		main_log_cb(status.error_message().c_str());
 		return -1;
 	}
@@ -457,18 +536,28 @@ int gnmi_jsoni_set(struct gnmi_session *gs, const char *path, char *req,
 	::grpc::Status status;
 
 	upd = greq.add_update();
-	convertYangPath2ProtoPath(path, upd->mutable_path());
+	convertYangPath2ProtoPathNew(path, upd->mutable_path());
+	GNMI_C_CONNECTOR_DEBUG_LOG("DEBUG [GNMI SET PAYLOAD]: Path= %s,JSON=%s", path, req);
 	upd->mutable_val()->set_json_ietf_val(std::string(req));
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		::grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
 		set_deadline_after_us(context, timeout_us);
 		return (*gs->stub)->Set(&context, greq, &gres);
 	});
+#else
+	/*Sercomm customized:No encryption when connect gnmi*/
+	::grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub)->Set(&context, greq, &gres);
+#endif
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+		GNMI_C_CONNECTOR_DEBUG_LOG("Error Message: %s", status.error_message().c_str());
 		main_log_cb(status.error_message().c_str());
 		return -1;
 	}
@@ -485,14 +574,19 @@ int gnmi_jsoni_del(struct gnmi_session *gs, const char *path,
 	::grpc::Status status;
 
 	del_gpath = greq.add_delete_();
-	convertYangPath2ProtoPath(path, del_gpath);
+	convertYangPath2ProtoPathNew(path, del_gpath);
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		::grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
 		set_deadline_after_us(context, timeout_us);
 		return (*gs->stub)->Set(&context, greq, &gres);
 	});
+#endif
+	::grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub)->Set(&context, greq, &gres);
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -512,15 +606,20 @@ int gnmi_jsoni_replace(struct gnmi_session *gs, const char *path, char *req,
 	::grpc::Status status;
 
 	upd = greq.add_replace();
-	convertYangPath2ProtoPath(path, upd->mutable_path());
+	convertYangPath2ProtoPathNew(path, upd->mutable_path());
 	upd->mutable_val()->set_json_ietf_val(std::string(req));
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		::grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
 		set_deadline_after_us(context, timeout_us);
 		return (*gs->stub)->Set(&context, greq, &gres);
 	});
+#endif
+	::grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub)->Set(&context, greq, &gres);
 
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
@@ -538,12 +637,19 @@ int gnmi_gnoi_system_reboot(struct gnmi_session *gs, int64_t timeout_us)
 	gnoi::system::RebootResponse gres;
 	gnoi::system::RebootRequest greq;
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
 		set_deadline_after_us(context, timeout_us);
 		return (*gs->stub_gnoi_system)->Reboot(&context, greq, &gres);
 	});
+#else
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_system)->Reboot(&context, greq, &gres);
+#endif
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -567,6 +673,7 @@ static int __gnmi_gnoi_sonic_copy(
 	greq.mutable_input()->set_destination(dst);
 	greq.mutable_input()->set_copy_config_option(mode);
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
@@ -574,6 +681,11 @@ static int __gnmi_gnoi_sonic_copy(
 		return (*gs->stub_gnoi_openconfig_file_mgmt_priv)
 			->Copy(&context, greq, &gres);
 	});
+#endif
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_openconfig_file_mgmt_priv)->Copy(&context, greq, &gres);
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -623,6 +735,7 @@ static int __gnmi_gnoi_sonic_cfg_subcmd(struct gnmi_session *gs,
 
 	greq.mutable_input()->set_subcmd(subcmd);
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
@@ -630,6 +743,12 @@ static int __gnmi_gnoi_sonic_cfg_subcmd(struct gnmi_session *gs,
 		return (*gs->stub_gnoi_sonic_cfg_mgmt)
 			->WriteErase(&context, greq, &gres);
 	});
+#else
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_sonic_cfg_mgmt)->WriteErase(&context, greq, &gres);
+#endif
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -662,6 +781,7 @@ int gnmi_gnoi_image_install(struct gnmi_session *gs, const char *uri,
 
 	greq.mutable_input()->set_image_name(uri);
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
@@ -669,6 +789,11 @@ int gnmi_gnoi_image_install(struct gnmi_session *gs, const char *uri,
 		return (*gs->stub_gnoi_openconfig_img_mgmt)
 			->ImageInstall(&context, greq, &gres);
 	});
+#endif
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_openconfig_img_mgmt)->ImageInstall(&context, greq, &gres);
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -692,6 +817,7 @@ int gnmi_gnoi_upgrade_status(struct gnmi_session *gs, char *res,
 	std::string rendered_json;
 	Json::FastWriter fastWriter;
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
@@ -699,6 +825,11 @@ int gnmi_gnoi_upgrade_status(struct gnmi_session *gs, char *res,
 		return (*gs->stub_gnoi_os)
 			->GetUpgradeStatus(&context, greq, &gres);
 	});
+#endif
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_os)->GetUpgradeStatus(&context, greq, &gres);
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
@@ -1177,7 +1308,7 @@ int gnmi_subscribe_add(gnmi_subscribe *subscribe, const char *path,
 {
 	auto s = subscribe->rq.mutable_subscribe()->add_subscription();
 
-	convertYangPath2ProtoPath(path, s->mutable_path());
+	convertYangPath2ProtoPathNew(path, s->mutable_path());
 
 	if (mode == GNMI_SUBSCRIBE_MODE_TARGET_DEFINED) {
 		s->set_mode(gnmi::SubscriptionMode::TARGET_DEFINED);
@@ -1230,6 +1361,7 @@ int gnmi_gnoi_sonic_alarm_acknowledge(struct gnmi_session *gs, const char **id,
 		rq.mutable_input()->add_id(id[i]);
 	}
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
@@ -1237,6 +1369,10 @@ int gnmi_gnoi_sonic_alarm_acknowledge(struct gnmi_session *gs, const char **id,
 		return (*gs->stub_gnoi_sonic_alarm)
 			->AcknowledgeAlarms(&context, rq, &resp);
 	});
+#endif
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_sonic_alarm)->AcknowledgeAlarms(&context, rq, &resp);
 
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
@@ -1274,6 +1410,7 @@ int gnmi_gnoi_sonic_alarm_show(
 
 	*rq.mutable_input()->mutable_id() = idopt;
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
@@ -1281,6 +1418,10 @@ int gnmi_gnoi_sonic_alarm_show(
 		return (*gs->stub_gnoi_sonic_alarm)
 			->ShowAlarms(&context, rq, &resp);
 	});
+#endif
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_sonic_alarm)->ShowAlarms(&context, rq, &resp);
 
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
@@ -1384,6 +1525,7 @@ int gnmi_gnoi_poe_port_reset(struct gnmi_session *gs, const char *port,
 
 	greq.mutable_input()->set_interface_name(port);
 
+#if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
 		grpc::ClientContext context;
 		context.AddMetadata("access_token", token);
@@ -1391,6 +1533,11 @@ int gnmi_gnoi_poe_port_reset(struct gnmi_session *gs, const char *port,
 		return (*gs->stub_gnoi_openconfig_poe)
 			->ResetPoe(&context, greq, &gres);
 	});
+#endif
+	grpc::ClientContext context;
+	set_deadline_after_us(context, timeout_us);
+	status = (*gs->stub_gnoi_openconfig_poe)->ResetPoe(&context, greq, &gres);
+
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed for %s", greq.mutable_input()->interface_name().c_str());
 		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());

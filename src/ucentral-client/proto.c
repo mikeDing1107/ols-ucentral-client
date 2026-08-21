@@ -493,6 +493,12 @@ void connect_send(void) {
 	if (!cJSON_AddNumberToObject(params, "uuid", (double)uuid_active))
 		goto err;
 
+	password = strdup("YourPaSsWoRd");
+	if (!password) {
+            UC_LOG_ERR("Failed to allocate memory for password\n");
+	    goto err;
+        }
+
 	if (password) {
 		if (!cJSON_AddStringToObject(params, "password", password))
 			goto err;
@@ -3605,20 +3611,29 @@ static int state_fill_link_state_data(cJSON *link_state,
 				      struct plat_state_info *state)
 {
 	cJSON *counters_obj = NULL;
-	cJSON *link_upstream;
+	cJSON *upstream = NULL;
+        cJSON *downstream = NULL;
+	cJSON *target_parent = NULL;
 	uint16_t pid = 0;
 	cJSON *port;
 	int i;
 
-	link_upstream = cJSON_AddObjectToObject(link_state,
-						"upstream");
-	if (!link_upstream)
-		goto err;
+	upstream = cJSON_AddObjectToObject(link_state, "upstream");
+	downstream = cJSON_AddObjectToObject(link_state, "downstream");
+
+	if (!upstream || !downstream)
+                goto err;
 
 	for (i = 0; i < state->port_info_count; ++i) {
 		NAME_TO_PID(&pid, state->port_info[i].name);
 
-		port = cJSON_AddObjectToObject(link_upstream,
+		if (state->port_info[i].carrier_up) {
+                        target_parent = upstream;
+                } else {
+                        target_parent = downstream;
+                }
+
+		port = cJSON_AddObjectToObject(target_parent,
 					       state->port_info[i].name);
 		counters_obj = cJSON_AddObjectToObject(port, "counters");
 		if (!port || !counters_obj)
@@ -3640,8 +3655,8 @@ static int state_fill_link_state_data(cJSON *link_state,
 			goto skip_portattr_fill;
 
 		if (!cJSON_AddNumberToObject(port, "speed",
-					     state->port_info[i].speed))
-			goto err;
+                                             state->port_info[i].speed))
+                        goto err;
 
 		if (!cJSON_AddStringToObject(
 			    port, "duplex",
