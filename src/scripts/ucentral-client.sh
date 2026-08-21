@@ -106,7 +106,7 @@ wait() {
 
     docker volume inspect TCA >/dev/null 2>&1 && docker volume rm TCA >/dev/null 2>&1
 
-    docker volume create --driver local --opt type=ext4 --opt device=/dev/disk/by-label/ONIE-TIP-CA-CERT TCA
+    docker volume create --driver local --opt type=ext4 --opt device=/dev/disk/by-label/ONIE-TIP-CA-CERT --opt o=rw TCA
     rm -r /tmp/gnma >/dev/null 2>&1 || true
     mkdir /tmp/gnma
     echo '{"auth_login": "ucentral_gnmi_private", "auth_passwd": "'$GNMI_PASSWD'"}' >/tmp/gnma/gnma.conf

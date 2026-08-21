@@ -241,6 +241,7 @@ int est_generate_csr(const char *cert_path, const char *key_path,
 		return EST_ERROR_CRYPTO;
 	}
 
+
 	EVP_PKEY_free(pkey);
 
 	/* Write CSR to memory (DER format) */
@@ -261,35 +262,45 @@ int est_generate_csr(const char *cert_path, const char *key_path,
 	X509_REQ_free(req);
 
 	/* Get DER data */
-	BUF_MEM *bio_buf;
-	BIO_get_mem_ptr(bio, &bio_buf);
+        unsigned char *der_buf = malloc(8192);
+        if (!der_buf) {
+                BIO_free(bio);
+                est_set_error("Out of memory");
+                return EST_ERROR_MEMORY;
+        }
 
-	/* Base64 encode (no headers) */
-	BIO *b64 = BIO_new(BIO_f_base64());
-	BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-	BIO *mem_bio = BIO_new(BIO_s_mem());
-	BIO_push(b64, mem_bio);
+	int der_len = BIO_read(bio, der_buf, 8192);
+        BIO_free(bio);
 
-	BIO_write(b64, bio_buf->data, bio_buf->length);
-	BIO_flush(b64);
+	if (der_len <= 0) {
+                free(der_buf);
+                UC_LOG_INFO("Failed to read DER data\n");
+                return EST_ERROR_CRYPTO;
+        }
 
-	BUF_MEM *b64_buf;
-	BIO_get_mem_ptr(mem_bio, &b64_buf);
+	size_t b64_max_len = ((der_len + 2) / 3) * 4 + 1;
+	*csr_out = malloc(b64_max_len);
 
-	*csr_out = malloc(b64_buf->length + 1);
 	if (!*csr_out) {
-		BIO_free_all(b64);
-		BIO_free(bio);
+		free(der_buf);
 		est_set_error("Out of memory");
 		return EST_ERROR_MEMORY;
 	}
 
-	memcpy(*csr_out, b64_buf->data, b64_buf->length);
-	(*csr_out)[b64_buf->length] = 0;
-	*csr_len = b64_buf->length;
+	int b64_len = EVP_EncodeBlock((unsigned char *)*csr_out,
+                                      der_buf,
+                                      der_len);
+	free(der_buf);
 
-	BIO_free_all(b64);
-	BIO_free(bio);
+	if (b64_len < 0) {
+                free(*csr_out);
+                *csr_out = NULL;
+                est_set_error("Failed to base64 encode CSR");
+                return EST_ERROR_CRYPTO;
+        }
+
+	*csr_len = b64_len;
+        (*csr_out)[b64_len] = '\0';
 
 	return EST_SUCCESS;
 }
@@ -300,83 +311,102 @@ int est_generate_csr(const char *cert_path, const char *key_path,
 int est_pkcs7_to_pem(const char *pkcs7_data, size_t pkcs7_len,
                      char **pem_out, size_t *pem_len)
 {
-	if (!pkcs7_data || !pkcs7_len || !pem_out || !pem_len) {
-		est_set_error("Invalid arguments");
-		return EST_ERROR_INVALID;
-	}
+	char cmd[256];
 
-	*pem_out = NULL;
-	*pem_len = 0;
+    	if (!pkcs7_data || !pkcs7_len || !pem_out || !pem_len) {
+        	UC_LOG_INFO("Invalid arguments");
+        	return EST_ERROR_INVALID;
+    	}
 
-	/* Decode base64 */
-	BIO *b64 = BIO_new(BIO_f_base64());
-	BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-	BIO *bio_mem = BIO_new_mem_buf((void*)pkcs7_data, pkcs7_len);
-	BIO_push(b64, bio_mem);
+    	*pem_out = NULL;
+    	*pem_len = 0;
 
-	/* Read PKCS#7 structure */
-	PKCS7 *p7 = d2i_PKCS7_bio(b64, NULL);
-	BIO_free_all(b64);
+	/*Add pkcs7 begin and end with response data*/
+    	FILE *tmp_p7 = fopen("/tmp/response.p7", "w");
+    	if (!tmp_p7) {
+        	UC_LOG_INFO("Failed to create temporary file");
+        	return EST_ERROR_GENERAL;
+    	}
 
-	if (!p7) {
-		est_set_error("Failed to parse PKCS#7 data");
-		return EST_ERROR_CRYPTO;
-	}
+    	fprintf(tmp_p7, "-----BEGIN PKCS #7 SIGNED DATA-----\n");
 
-	/* Extract certificates from PKCS#7 */
-	STACK_OF(X509) *certs = NULL;
-	int type = OBJ_obj2nid(p7->type);
+    	for (size_t i = 0; i < pkcs7_len; i++) {
+	        fputc(pkcs7_data[i], tmp_p7);
+        	if ((i + 1) % 64 == 0) {
+            		fputc('\n', tmp_p7);
+        	}
+    	}
 
-	if (type == NID_pkcs7_signed) {
-		certs = p7->d.sign->cert;
-	} else if (type == NID_pkcs7_signedAndEnveloped) {
-		certs = p7->d.signed_and_enveloped->cert;
-	}
+    	if (pkcs7_len % 64 != 0) {
+        	fputc('\n', tmp_p7);
+    	}
 
-	if (!certs || sk_X509_num(certs) == 0) {
-		PKCS7_free(p7);
-		est_set_error("No certificates in PKCS#7");
-		return EST_ERROR_CRYPTO;
-	}
+    	fprintf(tmp_p7, "-----END PKCS #7 SIGNED DATA-----\n");
 
-	/* Write certificates to PEM */
-	BIO *out = BIO_new(BIO_s_mem());
-	if (!out) {
-		PKCS7_free(p7);
-		est_set_error("Failed to create output BIO");
-		return EST_ERROR_MEMORY;
-	}
+    	fclose(tmp_p7);
 
-	for (int i = 0; i < sk_X509_num(certs); i++) {
-		X509 *cert = sk_X509_value(certs, i);
-		if (!PEM_write_bio_X509(out, cert)) {
-			BIO_free(out);
-			PKCS7_free(p7);
-			est_set_error("Failed to write certificate");
-			return EST_ERROR_CRYPTO;
-		}
-	}
+	/*Use response.p7 to get certs.pem*/
+    	snprintf(cmd, sizeof(cmd), "openssl pkcs7 -print_certs -in /tmp/response.p7 -out /tmp/certs.pem");
 
-	PKCS7_free(p7);
+    	int ret = system(cmd);
+    	if (ret != 0) {
+        	UC_LOG_INFO("OpenSSL command failed");
+		remove("/tmp/response.p7");
+        	return EST_ERROR_CRYPTO;
+    	}
 
-	/* Get PEM data */
-	BUF_MEM *pem_buf;
-	BIO_get_mem_ptr(out, &pem_buf);
 
-	*pem_out = malloc(pem_buf->length + 1);
-	if (!*pem_out) {
-		BIO_free(out);
-		est_set_error("Out of memory");
-		return EST_ERROR_MEMORY;
-	}
+	/*Transfer the contents of the certs.pem to pem_out*/
+    	FILE *pem_file = fopen("/tmp/certs.pem", "r");
+    	if (!pem_file) {
+        	UC_LOG_INFO("Failed to open output PEM file");
+        	remove("/tmp/response.p7");
+        	return EST_ERROR_GENERAL;
+    	}
 
-	memcpy(*pem_out, pem_buf->data, pem_buf->length);
-	(*pem_out)[pem_buf->length] = 0;
-	*pem_len = pem_buf->length;
+    	fseek(pem_file, 0, SEEK_END);
+    	long file_size = ftell(pem_file);
+    	fseek(pem_file, 0, SEEK_SET);
 
-	BIO_free(out);
+    	if (file_size <= 0) {
+        	fclose(pem_file);
+        	UC_LOG_INFO("Output PEM file is empty");
+        	remove("/tmp/response.p7");
+        	remove("/tmp/certs.pem");
+        	return EST_ERROR_CRYPTO;
+    	}
 
-	return EST_SUCCESS;
+    	*pem_out = (char *)malloc(file_size + 1);
+    	if (!*pem_out) {
+        	fclose(pem_file);
+        	UC_LOG_INFO("Out of memory");
+        	remove("/tmp/response.p7");
+        	remove("/tmp/certs.pem");
+        	return EST_ERROR_MEMORY;
+    	}
+
+    	size_t read_len = fread(*pem_out, 1, file_size, pem_file);
+    	fclose(pem_file);
+
+    	if (read_len != (size_t)file_size) {
+        	free(*pem_out);
+        	*pem_out = NULL;
+        	UC_LOG_INFO("Failed to read full PEM data");
+        	remove("/tmp/response.p7");
+        	remove("/tmp/certs.pem");
+        	return EST_ERROR_GENERAL;
+    	}
+
+    	(*pem_out)[file_size] = '\0'; // Null-terminate
+    	*pem_len = file_size;
+
+    	remove("/tmp/response.p7");
+    	remove("/tmp/certs.pem");
+
+    	UC_LOG_INFO("p7 to pem success");
+
+    	return EST_SUCCESS;
+
 }
 
 /**
@@ -458,6 +488,7 @@ int est_simple_enroll(const char *est_server, const char *birth_cert,
 	/* Generate CSR */
 	char *csr = NULL;
 	size_t csr_len = 0;
+	UC_LOG_INFO("est_generate_csr\n");
 	int ret = est_generate_csr(birth_cert, birth_key, &csr, &csr_len);
 	if (ret != EST_SUCCESS) {
 		return ret;
@@ -470,9 +501,12 @@ int est_simple_enroll(const char *est_server, const char *birth_cert,
 	/* Perform enrollment */
 	char *response = NULL;
 	size_t response_len = 0;
+	UC_LOG_INFO("est_http_request:csr:%s,url:%s\n",csr,url);
 	ret = est_http_request(url, birth_cert, birth_key, ca_bundle,
 	                       csr, csr_len, &response, &response_len);
 	free(csr);
+
+	UC_LOG_INFO("response:%s\n",response);
 
 	if (ret != EST_SUCCESS) {
 		return ret;
@@ -481,6 +515,7 @@ int est_simple_enroll(const char *est_server, const char *birth_cert,
 	/* Convert PKCS#7 response to PEM */
 	char *pem = NULL;
 	size_t pem_len = 0;
+	UC_LOG_INFO("est_pkcs7_to_pem\n");
 	ret = est_pkcs7_to_pem(response, response_len, &pem, &pem_len);
 	free(response);
 
