@@ -636,6 +636,9 @@ int gnmi_gnoi_system_reboot(struct gnmi_session *gs, int64_t timeout_us)
 	grpc::Status status;
 	gnoi::system::RebootResponse gres;
 	gnoi::system::RebootRequest greq;
+	greq.set_method(static_cast<gnoi::system::RebootMethod>(1)); /* COLD */
+	greq.set_delay(0);
+	greq.set_message("ucentral reboot");
 
 #if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
