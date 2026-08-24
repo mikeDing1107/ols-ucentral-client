@@ -86,6 +86,12 @@ start() {
 wait() {
     test -d /var/lib/ucentral || mkdir -p /var/lib/ucentral
 
+    echo "Waiting for gNMI service to be ready..."
+    while ! ss -tlnp | grep ":8080 "; do
+        sleep 1
+    done
+    echo "gNMI service is ready. Proceeding with uCentral startup..."
+
     # Provision birth certs from ONIE-TIP-CA-CERT partition into /host/ucentral-certs/
     provision_birth_certs
 
