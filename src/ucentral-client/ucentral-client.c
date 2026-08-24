@@ -512,10 +512,7 @@ callback_broker(struct lws *wsi, enum lws_callback_reasons reason,
 
 static int client_config_read(void)
 {
-	long f_devid_size;
-	FILE *f_devid;
 	int i;
-	const char *file_devid = UCENTRAL_CONFIG "dev-id";
 
 #if 0
 	/* UGLY W/A for now: get MAC from cert's CN */
@@ -557,31 +554,6 @@ static int client_config_read(void)
 	for (i = 10; i < 63; ++i)
 		client.CN[i] = tolower(client.CN[i]);
 
-	f_devid = fopen(file_devid, "rb");
-	if (!f_devid) {
-		UC_LOG_ERR("Failed to open devid ('%s') file (%d)", file_devid, errno);
-		return -1;
-	}
-
-	fseek(f_devid, 0, SEEK_END);
-	f_devid_size = ftell(f_devid);
-	fseek(f_devid, 0, SEEK_SET);
-
-	if (f_devid_size < UCENTRAL_DEVID_F_MAX_LEN) {
-		UC_LOG_ERR("dev-id file suspiciously < than %u.. trying anyway",
-			   UCENTRAL_DEVID_F_MAX_LEN);
-	}
-	else if (f_devid_size >= UCENTRAL_DEVID_F_MAX_LEN)
-		f_devid_size = UCENTRAL_DEVID_F_MAX_LEN + 1;
-
-	if (!fread(client.devid, f_devid_size, 1, f_devid)) {
-		UC_LOG_ERR("Failed to read devid string to buf (%d)", errno);
-		fclose(f_devid);
-		return -1;
-	}
-	client.devid[f_devid_size - 1] = '\0';
-
-	fclose(f_devid);
 	return 0;
 }
 

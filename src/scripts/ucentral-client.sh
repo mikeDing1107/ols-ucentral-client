@@ -2,6 +2,60 @@
 
 echo "uCentral Client"
 
+provision_birth_certs()
+{
+    local cert_dir=/host/ucentral-certs
+    local required="cas.pem cert.pem key.pem"
+    local missing=0
+    local tmpmnt
+    local msg
+    local f
+
+    mkdir -p "$cert_dir"
+
+    for f in $required; do
+        [ -f "${cert_dir}/$f" ] || missing=1
+    done
+
+    if [ "$missing" -ne 0 ]; then
+        echo "Birth certs missing in ${cert_dir}, provisioning from ONIE-TIP-CA-CERT partition..."
+        tmpmnt=$(mktemp -d)
+        if ! mount -o ro /dev/disk/by-label/ONIE-TIP-CA-CERT "$tmpmnt" 2>/dev/null && \
+           ! mount -o ro /dev/disk/by-partlabel/ONIE-TIP-CA-CERT "$tmpmnt" 2>/dev/null; then
+            msg="ERROR: Cannot mount ONIE-TIP-CA-CERT and birth certs missing in ${cert_dir}"
+            echo "$msg" | tee /dev/console
+            logger -t ucentral-client -p daemon.err "$msg"
+            exit 1
+        fi
+
+        for f in $required; do
+            if [ ! -f "${tmpmnt}/$f" ]; then
+                msg="ERROR: Birth cert ${f} not found in ONIE-TIP-CA-CERT partition"
+                echo "$msg" | tee /dev/console
+                logger -t ucentral-client -p daemon.err "$msg"
+                umount "$tmpmnt" || true
+                exit 1
+            fi
+            cp -v "${tmpmnt}/$f" "${cert_dir}/"
+        done
+
+        chmod 700 "$cert_dir"
+
+        umount "$tmpmnt" || true
+        rm -rf "$tmpmnt"
+        echo "Birth certs provisioned to ${cert_dir}"
+    fi
+
+    for f in $required; do
+        if [ ! -f "${cert_dir}/$f" ]; then
+            msg="ERROR: Birth cert ${f} still missing, aborting uCentral start"
+            echo "$msg" | tee /dev/console
+            logger -t ucentral-client -p daemon.err "$msg"
+            exit 1
+        fi
+    done
+}
+
 start() {
     UCENTRAL_CLIENT=/usr/local/lib/docker-ucentral-client.gz
     if [[ -e ${UCENTRAL_CLIENT} ]]; then
@@ -30,12 +84,15 @@ start() {
 }
 
 wait() {
-    test -d /var/lib/ucentral || mkdir /var/lib/ucentral
+    test -d /var/lib/ucentral || mkdir -p /var/lib/ucentral
+
+    # Provision birth certs from ONIE-TIP-CA-CERT partition into /host/ucentral-certs/
+    provision_birth_certs
 
     # Wait for at least one Vlan to be created - a signal that telemetry is up.
     # Even if vlan table is empty, private 3967 will be allocated with all
     # ports in it.
-    while ! ls /sys/class/net/Vlan* &>/dev/null; do sleep 1; done
+    # while ! ls /sys/class/net/Vlan* &>/dev/null; do sleep 1; done
 
     # Detect first boot on this version
     # Run upgrade overrides before fixups
@@ -53,15 +110,15 @@ wait() {
     sudo -u admin -- bash "sonic-cli" "/home/admin/OLS_NOS_fixups.script"
 
     # Mount the uCentral volume for client CA certificate
-    # TODO
+    # is now handled by provision_birth_certs() above.
 
     # Fix networking behaviour for management vlan:
     # As Vlan1 is not exist on boot time + could has lack of support hotplug -
     # we need to explicity ifup it to notify networking.
     # NOTE: alternatively we could use ifplugd. This also handle del/add scenario
-    ifup Vlan1 || true
+    # ifup Vlan1 || true
 
-    config vlan dhcp 1 enable
+    # config vlan dhcp 1 enable
 
     # There's an issue with containers starting before DNS server is configured:
     # resolf.conf file get copied from host to container upon container start.
@@ -76,7 +133,7 @@ wait() {
     # Wait for dhcp lease / network to be up - a URI we use for redirector
     # should be accessible.
     # This also means, that we won't start up untill this URI is accessible.
-    while ! curl clientauth.one.digicert.com &>/dev/null; do sleep 1; done
+    # while ! curl clientauth.one.digicert.com &>/dev/null; do sleep 1; done
 
     # Enable DHCP trusting for uplink (Vlan1) iface
     # It's needed to forward DHCP Discover (and replies) from/to DHCP server
@@ -104,9 +161,9 @@ wait() {
     GNMI_PASSWD=`openssl rand -hex 10`
     sudo -u admin sonic-cli -c "configure" -c "username ucentral_gnmi_private password $GNMI_PASSWD role admin"
 
-    docker volume inspect TCA >/dev/null 2>&1 && docker volume rm TCA >/dev/null 2>&1
+    # docker volume inspect TCA >/dev/null 2>&1 && docker volume rm TCA >/dev/null 2>&1
 
-    docker volume create --driver local --opt type=ext4 --opt device=/dev/disk/by-label/ONIE-TIP-CA-CERT --opt o=rw TCA
+    # docker volume create --driver local --opt type=ext4 --opt device=/dev/disk/by-label/ONIE-TIP-CA-CERT --opt o=rw TCA
     rm -r /tmp/gnma >/dev/null 2>&1 || true
     mkdir /tmp/gnma
     echo '{"auth_login": "ucentral_gnmi_private", "auth_passwd": "'$GNMI_PASSWD'"}' >/tmp/gnma/gnma.conf

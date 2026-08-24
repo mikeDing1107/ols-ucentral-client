@@ -24,6 +24,7 @@ function getBootType()
         ;;
     *)
         TYPE='cold'
+        ;;
     esac
     echo "${TYPE}"
 }
@@ -73,7 +74,7 @@ start() {
 			-v /sys/kernel/debug:/sys/kernel/debug \
 			--tmpfs /var/tmp \
 			--mount type=bind,src=/dev/log,dst=/dev/log \
-			-v TCA:/etc/ucentral:rw \
+            -v /host/ucentral-certs:/etc/ucentral \
 			-v /tmp/gnma:/etc/gnma \
 			-v /var/lib/ucentral:/var/lib/ucentral \
 			-v /var/dump:/var/dump \
