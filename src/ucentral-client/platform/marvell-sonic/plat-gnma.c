@@ -71,6 +71,7 @@ plat_poe_port_state_get(uint16_t pid,
 static int
 plat_poe_state_get(struct plat_poe_state *state);*/
 static int plat_port_speed_set(uint16_t fp_p_id, uint32_t speed);
+static int plat_port_autoneg_set(uint16_t fp_p_id, const char *autoneg);
 //static int plat_port_duplex_set(uint16_t fp_p_id, uint32_t duplex);
 static int plat_port_admin_state_set(uint16_t fp_p_id, uint8_t state);
 static int plat_vlan_rif_set(uint16_t vid, struct plat_ipv4 *ipv4);
@@ -1448,6 +1449,17 @@ int plat_port_admin_state_set(uint16_t fp_p_id, uint8_t state)
 	PID_TO_NAME(fp_p_id, gnma_port.name);
 
 	gnma_port_admin_state_set(&gnma_port, state == UCENTRAL_PORT_ENABLED_E ? true : false);
+	return 0;
+}
+
+int plat_port_autoneg_set(uint16_t fp_p_id, const char *autoneg)
+{
+	struct gnma_port_key gnma_port;
+
+	PID_TO_NAME(fp_p_id, gnma_port.name);
+
+	gnma_port_autoneg_set(&gnma_port, autoneg);
+
 	return 0;
 }
 
@@ -4491,6 +4503,10 @@ static int plat_port_config_apply(struct plat_cfg *cfg)
 		ret = plat_port_admin_state_set(i, cfg->ports[i].state);
 		if (cfg->ports[i].state) {
 			ret |= plat_port_speed_set(i, cfg->ports[i].speed);
+		}
+
+		if (cfg->ports[i].autoneg[0] != '\0') {
+			ret |= plat_port_autoneg_set(i, cfg->ports[i].autoneg);
 		}
 
 		if (ret)
