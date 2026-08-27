@@ -1128,6 +1128,7 @@ static int cfg_ethernet_parse(cJSON *ethernet, struct plat_cfg *cfg)
 		size_t ports_selected = 0;
 		cJSON *select_ports;
 		//const char *duplex;
+		const char *autoneg;
 		double speed = 0;
 		cJSON *ieee8021x;
 		bool enabled;
@@ -1139,6 +1140,14 @@ static int cfg_ethernet_parse(cJSON *ethernet, struct plat_cfg *cfg)
 		enabled = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(eth, "enabled"));
 		//duplex = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(eth, "duplex"));
 		speed = cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(eth, "speed"));
+		autoneg = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(eth, "autoneg"));
+
+		if (autoneg != NULL) {
+			strcpy(tmp_port.autoneg, autoneg);
+		} else {
+			tmp_port.autoneg[0] = '\0';
+		}
+
 
 		if (!speed || !select_ports) {
 			UC_LOG_ERR("Ethernet obj doesn't hold duplex, speed or select-ports fields, parse failed\n");
@@ -1172,6 +1181,7 @@ static int cfg_ethernet_parse(cJSON *ethernet, struct plat_cfg *cfg)
 		//proto_port_duplex_to_num(duplex, &tmp_port.duplex);
 		proto_port_state_to_num(enabled, &tmp_port.state);
 		proto_port_speed_to_num(speed, &tmp_port.speed);
+
 
 		ret = cfg_ethernet_select_ports_parse(select_ports,
 						      tmp_port_bmap,

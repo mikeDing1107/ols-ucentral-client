@@ -323,6 +323,7 @@ struct gnma_vlan_ip_t {
 
 int gnma_switch_create(/* TODO id */ /* TODO: attr (adr, login, psw) */);
 int gnma_port_admin_state_set(struct gnma_port_key *port_key, bool up);
+int gnma_port_autoneg_set(struct gnma_port_key *port_key, const char *autoneg);
 int gnma_port_speed_set(struct gnma_port_key *port_key, const char *speed);
 int gnma_port_duplex_set(struct gnma_port_key *port_key, bool full_duplex);
 int gnma_port_ieee8021x_pae_mode_set(struct gnma_port_key *port_key,

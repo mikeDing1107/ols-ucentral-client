@@ -162,6 +162,7 @@ struct plat_ports_list {
 
 struct plat_port {
 	char name[PORT_MAX_NAME_LEN];
+	char autoneg[8];
 	uint32_t speed;
 	uint16_t fp_id;
 	uint8_t duplex;
