@@ -3341,7 +3341,6 @@ static int plat_port_info_get(struct plat_port_info **port_info, int *count)
 			//goto err;
 		}
 
-		UC_LOG_DBG("continue");
 		if (!plat_port_lldp_peer_info_get(pid,
 						  &pinfo[i].lldp_peer_info)) {
 			pinfo[i].has_lldp_peer_info = 1;

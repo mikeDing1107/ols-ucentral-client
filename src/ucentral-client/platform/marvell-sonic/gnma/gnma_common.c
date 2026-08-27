@@ -1027,13 +1027,14 @@ err_path_alloc:
 int gnma_port_lldp_peer_info_get(struct gnma_port_key *port_key, char *buf,
 				 size_t buf_size)
 {
-	cJSON *parsed_res, *lldp_neigh;
+	cJSON *parsed_res, *lldp_neigh, *interface_obj, *interface_data, *neighbors_obj;
 	char *gpath;
 	int ret;
 
 	ret = asprintf(&gpath,
-		       "/openconfig-lldp:lldp/interfaces/interface[name=%s]/neighbors/neighbor[id=%s]",
-		       port_key->name, port_key->name);
+		       "/openconfig-lldp:lldp/interfaces/interface[name=%s]",
+		       port_key->name);
+
 	if (ret == -1) {
 		ret = GNMA_ERR_COMMON;
 		goto err_path_alloc;
@@ -1052,7 +1053,25 @@ int gnma_port_lldp_peer_info_get(struct gnma_port_key *port_key, char *buf,
 		goto err_gnmi_parse;
 	}
 
-	lldp_neigh = cJSON_GetObjectItemCaseSensitive(parsed_res, "openconfig-lldp:neighbor");
+	interface_obj = cJSON_GetObjectItemCaseSensitive(parsed_res, "openconfig-lldp:interface");
+    	if (!interface_obj || !cJSON_IsArray(interface_obj) || !cJSON_GetArraySize(interface_obj)) {
+        	ret = GNMA_ERR_COMMON;
+        	goto err_gnmi_get_obj;
+    	}
+
+	interface_data = cJSON_GetArrayItem(interface_obj, 0);
+    	if (!interface_data) {
+        	ret = GNMA_ERR_COMMON;
+        	goto err_gnmi_get_obj;
+    	}
+
+	neighbors_obj = cJSON_GetObjectItemCaseSensitive(interface_data, "neighbors");
+    	if (!neighbors_obj) {
+        	ret = GNMA_ERR_COMMON;
+        	goto err_gnmi_get_obj;
+   	}
+
+	lldp_neigh = cJSON_GetObjectItemCaseSensitive(neighbors_obj, "neighbor");
 	if (!lldp_neigh || !cJSON_IsArray(lldp_neigh) || !cJSON_GetArraySize(lldp_neigh)) {
 		ret = GNMA_ERR_COMMON;
 		goto err_gnmi_get_obj;
