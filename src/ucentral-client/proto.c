@@ -1186,6 +1186,7 @@ static int cfg_ethernet_parse(cJSON *ethernet, struct plat_cfg *cfg)
 		cJSON *select_ports;
 		//const char *duplex;
 		const char *autoneg;
+		const char *fec;
 		double speed = 0;
 		cJSON *ieee8021x;
 		bool enabled;
@@ -1198,11 +1199,18 @@ static int cfg_ethernet_parse(cJSON *ethernet, struct plat_cfg *cfg)
 		//duplex = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(eth, "duplex"));
 		speed = cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(eth, "speed"));
 		autoneg = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(eth, "autoneg"));
+		fec = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(eth, "fec"));
 
 		if (autoneg != NULL) {
 			strcpy(tmp_port.autoneg, autoneg);
 		} else {
 			tmp_port.autoneg[0] = '\0';
+		}
+
+		if (fec != NULL) {
+			strcpy(tmp_port.fec, fec);
+		} else {
+			tmp_port.fec[0] = '\0';
 		}
 
 

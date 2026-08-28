@@ -189,6 +189,72 @@ err_path_alloc:
 	return ret;
 }
 
+int gnma_port_fec_set(struct gnma_port_key *port_key, const char *fec)
+{
+	cJSON *root;
+        cJSON *val;
+        cJSON *arr;
+        char *path;
+        int ret;
+
+        ret = asprintf(&path, "/sonic-port:sonic-port/PORT/PORT_LIST[name=%s]",
+                       port_key->name);
+        if (ret == -1) {
+                ret = GNMA_ERR_COMMON;
+                goto err_path_alloc;
+        }
+
+        root = cJSON_CreateObject();
+        if (!root) {
+                ret = GNMA_ERR_COMMON;
+                goto err_root_alloc;
+        }
+
+        arr = cJSON_AddArrayToObject(root, "sonic-port:PORT_LIST");
+        if (!arr) {
+                ret = GNMA_ERR_COMMON;
+                goto err_val_alloc;
+        }
+
+        val = cJSON_CreateObject();
+        if (!val) {
+                ret = GNMA_ERR_COMMON;
+                goto err_val_alloc;
+        }
+
+        if (!cJSON_AddItemToArray(arr, val)) {
+                cJSON_Delete(val);
+                ret = GNMA_ERR_COMMON;
+		goto err_val_alloc;
+        }
+
+        if (!cJSON_AddStringToObject(val, "name", port_key->name)) {
+                ret = GNMA_ERR_COMMON;
+                goto err_val_set;
+        }
+
+        if (!cJSON_AddStringToObject(val, "fec", fec)) {
+                ret = GNMA_ERR_COMMON;
+                goto err_val_set;
+        }
+
+        ret = gnmi_json_object_set(main_switch, path, root, DEFAULT_TIMEOUT_US);
+        if (ret) {
+                ret = GNMA_ERR_COMMON;
+                goto err_req_fail;
+        }
+
+        ret = 0;
+err_req_fail:
+err_val_set:
+err_val_alloc:
+        cJSON_Delete(root);
+err_root_alloc:
+        free(path);
+err_path_alloc:
+        return ret;
+}
+
 int gnma_port_autoneg_set(struct gnma_port_key *port_key, const char *autoneg)
 {
 	cJSON *root;
