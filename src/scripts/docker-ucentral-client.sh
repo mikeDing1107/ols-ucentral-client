@@ -77,6 +77,7 @@ start() {
             -v /host/ucentral-certs:/etc/ucentral \
 			-v /tmp/gnma:/etc/gnma \
 			-v /var/lib/ucentral:/var/lib/ucentral \
+			-v /etc/sonic/sonic_version.yml:/etc/sonic/sonic_version.yml:ro \
 			-v /var/dump:/var/dump \
 			--tty \
 			--name=$DOCKERNAME ucentral-client:latest || {

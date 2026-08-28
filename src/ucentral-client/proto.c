@@ -6,6 +6,7 @@
 
 #include <cjson/cJSON.h>
 #include <curl/curl.h>
+#include <ctype.h>
 
 #define UC_LOG_COMPONENT UC_LOG_COMPONENT_PROTO
 
@@ -15,6 +16,9 @@
 #define CONFIGURE_STATUS_REJECTED 2
 #define CONFIGURE_STATUS_PARTIALLY_APPLIED 1
 #define CONFIGURE_STATUS_APPLIED 0
+
+#define SONIC_VERSION_FILE "/etc/sonic/sonic_version.yml"
+#define FIRMWARE_BUF_SIZE 128
 
 /*
  * Test Framework Support - Conditional Function Visibility
@@ -456,6 +460,43 @@ static cJSON *readJsonFile(const char *filename) {
 	return ret;
 }
 
+static char* get_sonic_firmware_version(void) {
+    static char firmware[FIRMWARE_BUF_SIZE];
+    FILE *fp = fopen(SONIC_VERSION_FILE, "r");
+    if (!fp) {
+        UC_LOG_ERR("Failed to open %s", SONIC_VERSION_FILE);
+        return NULL;
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "software_version:", 17) == 0) {
+            char *value = line + 17;
+
+            while (*value && isspace((unsigned char)*value)) value++;
+
+            size_t len = strlen(value);
+            while (len > 0 && isspace((unsigned char)value[len - 1])) {
+                value[--len] = '\0';
+            }
+
+            if (len >= 2 && ((value[0] == '\'' && value[len - 1] == '\'') ||
+                             (value[0] == '"' && value[len - 1] == '"'))) {
+                value[len - 1] = '\0';
+                value++;
+            }
+
+            snprintf(firmware, sizeof(firmware), "SONiC.%s", value);
+            fclose(fp);
+            return firmware;
+        }
+    }
+
+    fclose(fp);
+    UC_LOG_ERR("software_version not found in %s", SONIC_VERSION_FILE);
+    return NULL;
+}
+
 void connect_send(void) {
 	/* WIP: TMP hardcode; to be removed*/
 	unsigned mac[6];
@@ -487,8 +528,19 @@ void connect_send(void) {
 	if (!cJSON_AddStringToObject(params, "serial", client.serial))
 		goto err;
 
+#if 0
 	if (!cJSON_AddStringToObject(params, "firmware", client.firmware))
 		goto err;
+#else
+	const char *fw_ver = get_sonic_firmware_version();
+        if (!fw_ver) {
+                UC_LOG_DBG("Failed to get firmware from sonic_version.yml, fallback to client.firmware");
+                fw_ver = client.firmware;
+        }
+
+        if (!cJSON_AddStringToObject(params, "firmware", fw_ver))
+                goto err;
+#endif
 
 	if (!cJSON_AddNumberToObject(params, "uuid", (double)uuid_active))
 		goto err;
@@ -522,8 +574,13 @@ void connect_send(void) {
 	if (!cJSON_AddStringToObject(cap, "serial", client.serial))
 		goto err;
 
+#if 0
 	if (!cJSON_AddStringToObject(cap, "firmware", client.firmware))
 		goto err;
+#else
+	if (!cJSON_AddStringToObject(cap, "firmware", fw_ver))
+        	goto err;
+#endif
 
 	cJSON *client_version_json = readJsonFile(client.ols_client_version_file);
 	if (!client_version_json)
