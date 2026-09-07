@@ -1,6 +1,6 @@
 CCFLAGS += -Wall -Wextra -Werror -Wno-error=deprecated-declarations
 
-GNMI_PROTOS = sonic_gnoi.proto openconfig_poe.proto sonic_alarm.proto gnmi.proto gnmi_ext.proto system.proto types.proto common.proto openconfig_file_mgmt_private.proto sonic_config_mgmt.proto openconfig_image_management.proto os.proto
+GNMI_PROTOS = sonic_gnoi.proto openconfig_poe.proto sonic_alarm.proto gnmi.proto gnmi_ext.proto system.proto types.proto common.proto openconfig_file_mgmt_private.proto sonic_config_mgmt.proto openconfig_image_management.proto os.proto factory_reset.proto
 GNMI_OBJECTS = $(patsubst %.proto, %.pb.o, $(GNMI_PROTOS)) $(patsubst %.proto, %.grpc.pb.o, $(GNMI_PROTOS))
 GNMI_CC_FILES = $(patsubst %.o, %.cc, $(GNMI_OBJECTS))
 GNMI_H_FILES = $(patsubst %.o, %.h, $(GNMI_OBJECTS))
