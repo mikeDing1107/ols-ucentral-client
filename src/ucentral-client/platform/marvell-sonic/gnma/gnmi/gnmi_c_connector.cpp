@@ -695,16 +695,15 @@ int gnmi_gnoi_system_reboot(struct gnmi_session *gs, int64_t timeout_us)
 
 static int __gnmi_gnoi_sonic_copy(
 	struct gnmi_session *gs, char *src, char *dst,
-	gnoi::OpenconfigFileMgmtPrivate::CopyRequest_Input_Copy_config_option mode,
 	int64_t timeout_us)
 {
 	grpc::Status status;
-	gnoi::OpenconfigFileMgmtPrivate::CopyResponse gres;
-	gnoi::OpenconfigFileMgmtPrivate::CopyRequest greq;
+	gnoi::sonic::CopyConfigResponse gres;
+        gnoi::sonic::CopyConfigRequest greq;
 
 	greq.mutable_input()->set_source(src);
 	greq.mutable_input()->set_destination(dst);
-	greq.mutable_input()->set_copy_config_option(mode);
+	greq.mutable_input()->set_overwrite(false);
 
 #if 0
 	status = invoke_with_token(gs, [&](const std::string &token) {
@@ -717,7 +716,7 @@ static int __gnmi_gnoi_sonic_copy(
 #endif
 	grpc::ClientContext context;
 	set_deadline_after_us(context, timeout_us);
-	status = (*gs->stub_gnoi_openconfig_file_mgmt_priv)->Copy(&context, greq, &gres);
+	status = (*gs->stub_gnoi_sonic)->CopyConfig(&context, greq, &gres);
 
 	if (!status.ok()) {
 		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
@@ -734,8 +733,6 @@ int gnmi_gnoi_sonic_copy_merge(struct gnmi_session *gs, char *src, char *dst,
 {
 	return __gnmi_gnoi_sonic_copy(
 		gs, src, dst,
-		gnoi::OpenconfigFileMgmtPrivate::
-			CopyRequest_Input_Copy_config_option_MERGE,
 		timeout_us);
 }
 
@@ -744,8 +741,6 @@ int gnmi_gnoi_sonic_copy_overwrite(struct gnmi_session *gs, char *src,
 {
 	return __gnmi_gnoi_sonic_copy(
 		gs, src, dst,
-		gnoi::OpenconfigFileMgmtPrivate::
-			CopyRequest_Input_Copy_config_option_OVERWRITE,
 		timeout_us);
 }
 
@@ -754,8 +749,6 @@ int gnmi_gnoi_sonic_copy_replace(struct gnmi_session *gs, char *src, char *dst,
 {
 	return __gnmi_gnoi_sonic_copy(
 		gs, src, dst,
-		gnoi::OpenconfigFileMgmtPrivate::
-			CopyRequest_Input_Copy_config_option_REPLACE,
 		timeout_us);
 }
 

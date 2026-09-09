@@ -29,9 +29,22 @@ service SonicService {
   rpc UnackAlarms (UnackAlarmsRequest) returns (UnackAlarmsResponse) {}
   rpc GetEventProfile (GetEventProfileRequest) returns (GetEventProfileResponse) {}
   rpc SetEventProfile (SetEventProfileRequest) returns (SetEventProfileResponse) {}
+  rpc CopyConfig(CopyConfigRequest) returns (CopyConfigResponse) {}
     
 }
 
+message CopyConfigRequest {
+    message Input {
+        string source = 1;
+	bool overwrite = 2;
+	string destination = 3;
+    }
+    Input input = 1;
+}
+
+message CopyConfigResponse {
+    SonicOutput output = 1;
+}
 
 message SonicOutput {
     int32 status = 1;
