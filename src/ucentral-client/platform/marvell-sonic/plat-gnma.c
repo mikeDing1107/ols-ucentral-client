@@ -2264,7 +2264,7 @@ int plat_vlan_list_set(BITMAP_DECLARE(vlans_to_cfg, GNMA_MAX_VLANS))
 		if (ret)
 		{
 			UC_LOG_DBG("vlan rif set fail");
-			//goto err;
+			goto err;
 		}
 		ret = gnma_vlan_remove(vid);
 		if (ret)
@@ -3117,7 +3117,7 @@ int plat_vlan_rif_set(uint16_t vid, struct plat_ipv4 *ipv4)
 					&plat_state.vlans[vid].dhcp_relay.helper_addresses[i]))
 		{
 			UC_LOG_ERR("gnma_vlan_dhcp_relay_server_remove fail");
-			return -1;
+			//return -1;
 		}
 	}
 
