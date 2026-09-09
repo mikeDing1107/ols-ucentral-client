@@ -148,6 +148,7 @@ int gnmi_jsoni_del(struct gnmi_session *gs, const char *path,
 int gnmi_jsoni_replace(struct gnmi_session *gs, const char *path, char *req,
 		       int64_t timeout_us);
 int gnmi_gnoi_system_reboot(struct gnmi_session *gs, int64_t timeout_us);
+int gnmi_gnoi_factory_reset_start(struct gnmi_session *gs, bool factory_os, int64_t timeout_us);
 int gnmi_gnoi_sonic_copy_merge(struct gnmi_session *gs, char *src, char *dst,
 			       int64_t timeout_us);
 int gnmi_gnoi_sonic_copy_overwrite(struct gnmi_session *gs, char *src,

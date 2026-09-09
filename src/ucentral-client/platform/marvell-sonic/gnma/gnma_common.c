@@ -2551,6 +2551,12 @@ err_gnmi_get:
 int gnma_factory_default(void)
 {
 	int ret;
+
+	ret = gnmi_gnoi_factory_reset_start(main_switch, true, DEFAULT_TIMEOUT_US);
+        if (ret) {
+                return GNMA_ERR_COMMON;
+        }
+#if 0
 	ret = gnmi_gnoi_sonic_cfg_erase_boot(main_switch, DEFAULT_TIMEOUT_US);
 	if (ret)
 		return GNMA_ERR_COMMON;
@@ -2565,6 +2571,7 @@ int gnma_factory_default(void)
 
 		return GNMA_ERR_COMMON;
 	}
+#endif
 
 	return 0;
 }

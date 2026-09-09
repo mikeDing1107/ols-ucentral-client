@@ -285,6 +285,7 @@ static size_t plat_log_ringbuf_wp = 0;
 
 static const char *cfgid_path = "/var/lib/ucentral/saved_config_id";
 static const char *cfgmetrics_path = "/var/lib/ucentral/saved_cfg_metrics";
+static const char *cfgucentral_path = "/var/lib/ucentral";
 
 static void *subscribe_hdl;
 static struct plat_event_callbacks events_cbs;
@@ -2384,6 +2385,15 @@ out:
 	return err;
 }
 
+static int __plat_config_ucentral_delete()
+{
+	char cmd[256];
+	snprintf(cmd, sizeof(cmd), "rm -rf %s", cfgucentral_path);
+	system(cmd);
+	
+	return 0;
+}
+
 static int __plat_config_id_load(uint64_t *id)
 {
 	FILE *cfgid_file = NULL;
@@ -2451,7 +2461,12 @@ int plat_saved_config_id_get(uint64_t *id)
 
 int plat_factory_default(void)
 {
-	return gnma_factory_default();
+	int ret = -1;
+	ret = gnma_factory_default();
+	if(!ret)
+		__plat_config_ucentral_delete();
+
+	return ret;
 }
 
 int plat_rtty(struct plat_rtty_cfg *rtty_cfg)

@@ -32,6 +32,8 @@
 #include "os.pb.h"
 #include "openconfig_poe.pb.h"
 #include "openconfig_poe.grpc.pb.h"
+#include "factory_reset.grpc.pb.h"
+#include "factory_reset.pb.h"
 
 using namespace std::chrono_literals;
 using namespace std::chrono;
@@ -214,6 +216,7 @@ struct gnmi_session {
 	std::unique_ptr<gnoi::sonic::SonicService::Stub> *stub_gnoi_sonic;
 	std::unique_ptr<gnoi::OpenconfigPoe::OpenconfigPoeService::Stub>
 		*stub_gnoi_openconfig_poe;
+	std::unique_ptr<gnoi::factory_reset::FactoryReset::Stub> *stub_gnoi_factory_reset;
 	std::string *host;
 	std::string *username;
 	std::string *password;
@@ -243,6 +246,7 @@ struct gnmi_session *gnmi_session_create(char *host,
 	gs->stub_gnoi_openconfig_file_mgmt_priv = new std::unique_ptr<gnoi::OpenconfigFileMgmtPrivate::OpenconfigFileMgmtPrivateService::Stub>();
 	gs->stub_gnoi_openconfig_img_mgmt = new std::unique_ptr<gnoi::OpenconfigImageManagement::OpenconfigImageManagementService::Stub>();
 	gs->stub_gnoi_sonic_cfg_mgmt = new std::unique_ptr<gnoi::SonicConfigMgmt::SonicConfigMgmtService::Stub>();
+	gs->stub_gnoi_factory_reset = new std::unique_ptr<gnoi::factory_reset::FactoryReset::Stub>();
 	gs->stub_gnoi_os = new std::unique_ptr<gnoi::os::OS::Stub>();
 	gs->stub_gnoi_sonic_alarm =
 		new std::unique_ptr<gnoi::SonicAlarm::SonicAlarmService::Stub>();
@@ -270,6 +274,8 @@ struct gnmi_session *gnmi_session_create(char *host,
 		grpc::CreateChannel(*gs->host, credentials));
 	*gs->stub_gnoi_openconfig_poe = gnoi::OpenconfigPoe::OpenconfigPoeService::NewStub(
 		grpc::CreateChannel(*gs->host, credentials));
+	*gs->stub_gnoi_factory_reset = gnoi::factory_reset::FactoryReset::NewStub(
+        	grpc::CreateChannel(*gs->host, credentials));
 
 	return gs;
 }
@@ -629,6 +635,30 @@ int gnmi_jsoni_replace(struct gnmi_session *gs, const char *path, char *req,
 	}
 
 	return 0;
+}
+
+int gnmi_gnoi_factory_reset_start(struct gnmi_session *gs, bool factory_os, int64_t timeout_us)
+{
+	grpc::Status status;
+        gnoi::factory_reset::StartResponse gres;
+        gnoi::factory_reset::StartRequest greq;
+
+        // Set the factory_os flag defined in the proto
+        greq.set_factory_os(factory_os);
+
+        grpc::ClientContext context;
+        set_deadline_after_us(context, timeout_us);
+        status = (*gs->stub_gnoi_factory_reset)->Start(&context, greq, &gres);
+
+        if (!status.ok()) {
+                GNMI_C_CONNECTOR_DEBUG_LOG("FactoryReset Request failed");
+                GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+                // Use gRPC native error message since StartResponse has no status_detail
+                main_log_cb(status.error_message().c_str());
+                return -1;
+        }
+
+        return 0;
 }
 
 int gnmi_gnoi_system_reboot(struct gnmi_session *gs, int64_t timeout_us)
