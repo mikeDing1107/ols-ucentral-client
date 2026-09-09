@@ -651,11 +651,6 @@ int gnmi_gnoi_factory_reset_start(struct gnmi_session *gs, bool factory_os, int6
         status = (*gs->stub_gnoi_factory_reset)->Start(&context, greq, &gres);
 
         if (!status.ok()) {
-		if (status.error_code() == grpc::StatusCode::UNAVAILABLE) {
-                        GNMI_C_CONNECTOR_DEBUG_LOG("FactoryReset triggered successfully (connection dropped due to reboot)");
-                        return 0; // Treat as success
-                }
-
                 GNMI_C_CONNECTOR_DEBUG_LOG("FactoryReset Request failed");
                 GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
                 // Use gRPC native error message since StartResponse has no status_detail
