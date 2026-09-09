@@ -52,6 +52,8 @@ static void set_deadline_after_us(grpc::ClientContext &c, int64_t us)
 /* Add for new sonic yang version 0.7.0 */
 static int convertYangPath2ProtoPathNew(const char *yangPath, ::gnmi::Path *path)
 {
+    if (!yangPath) return 0;
+
     std::string pathStr(yangPath);
     if (!pathStr.empty() && pathStr[0] == '/') {
         pathStr = pathStr.substr(1);
@@ -63,41 +65,83 @@ static int convertYangPath2ProtoPathNew(const char *yangPath, ::gnmi::Path *path
         pathStr = pathStr.substr(colonPos + 1);
     }
 
-    std::stringstream ss(pathStr);
     std::string elemName;
+    bool in_brackets = false;
 
-    while (std::getline(ss, elemName, '/')) {
-        if (!elemName.empty()) {
-            auto *elem = path->add_elem();
-            size_t bracketPos = elemName.find('[');
+    for (size_t i = 0; i < pathStr.length(); ++i) {
+        char c = pathStr[i];
 
-            if (bracketPos != std::string::npos) {
-                std::string pureName = elemName.substr(0, bracketPos);
-                elem->set_name(pureName);
+        if (c == '[') {
+            in_brackets = true;
+            elemName += c;
+        } else if (c == ']') {
+            in_brackets = false;
+            elemName += c;
+        } else if (c == '/' && !in_brackets) {
+            if (!elemName.empty()) {
+                auto *elem = path->add_elem();
+                size_t bracketPos = elemName.find('[');
 
-                std::string keysPart = elemName.substr(bracketPos);
+                if (bracketPos != std::string::npos) {
+                    std::string pureName = elemName.substr(0, bracketPos);
+                    elem->set_name(pureName);
 
-                size_t currentPos = 0;
-                while (currentPos < keysPart.length()) {
-                    size_t startBracket = keysPart.find('[', currentPos);
-                    if (startBracket == std::string::npos) break;
+                    std::string keysPart = elemName.substr(bracketPos);
+                    size_t currentPos = 0;
+                    while (currentPos < keysPart.length()) {
+                        size_t startBracket = keysPart.find('[', currentPos);
+                        if (startBracket == std::string::npos) break;
 
-                    size_t equalPos = keysPart.find('=', startBracket);
-                    if (equalPos == std::string::npos) break;
+                        size_t equalPos = keysPart.find('=', startBracket);
+                        if (equalPos == std::string::npos) break;
 
-                    size_t endBracket = keysPart.find(']', equalPos);
-                    if (endBracket == std::string::npos) break;
+                        size_t endBracket = keysPart.find(']', equalPos);
+                        if (endBracket == std::string::npos) break;
 
-                    std::string keyName = keysPart.substr(startBracket + 1, equalPos - startBracket - 1);
-                    std::string keyValue = keysPart.substr(equalPos + 1, endBracket - equalPos - 1);
+                        std::string keyName = keysPart.substr(startBracket + 1, equalPos - startBracket - 1);
+                        std::string keyValue = keysPart.substr(equalPos + 1, endBracket - equalPos - 1);
 
-                    (*elem->mutable_key())[keyName] = keyValue;
-
-                    currentPos = endBracket + 1;
+                        (*elem->mutable_key())[keyName] = keyValue;
+                        currentPos = endBracket + 1;
+                    }
+                } else {
+                    elem->set_name(elemName);
                 }
-            } else {
-                elem->set_name(elemName);
+                elemName.clear();
             }
+        } else {
+            elemName += c;
+        }
+    }
+
+    if (!elemName.empty()) {
+        auto *elem = path->add_elem();
+        size_t bracketPos = elemName.find('[');
+
+        if (bracketPos != std::string::npos) {
+            std::string pureName = elemName.substr(0, bracketPos);
+            elem->set_name(pureName);
+
+            std::string keysPart = elemName.substr(bracketPos);
+            size_t currentPos = 0;
+            while (currentPos < keysPart.length()) {
+                size_t startBracket = keysPart.find('[', currentPos);
+                if (startBracket == std::string::npos) break;
+
+                size_t equalPos = keysPart.find('=', startBracket);
+                if (equalPos == std::string::npos) break;
+
+                size_t endBracket = keysPart.find(']', equalPos);
+                if (endBracket == std::string::npos) break;
+
+                std::string keyName = keysPart.substr(startBracket + 1, equalPos - startBracket - 1);
+                std::string keyValue = keysPart.substr(equalPos + 1, endBracket - equalPos - 1);
+
+                (*elem->mutable_key())[keyName] = keyValue;
+                currentPos = endBracket + 1;
+            }
+        } else {
+            elem->set_name(elemName);
         }
     }
 

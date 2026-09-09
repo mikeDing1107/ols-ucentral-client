@@ -3296,12 +3296,14 @@ int gnma_vlan_erif_attr_pref_list_get(uint16_t vid,
 	char *gbuf = NULL;
 	int ret, err = 0;
 	char gpath[256];
+	char vlan_name[32];
+	char *vlan_name_str;
 	char *addr_str;
 
 	memset(prefix_list, 0, (*list_size) * sizeof(*prefix_list));
 
-	sprintf(&gpath[0],
-		"/sonic-vlan:sonic-vlan/VLAN_INTERFACE/VLAN_INTERFACE_LIST");
+	snprintf(gpath, sizeof(gpath),
+		"/sonic-vlan:sonic-vlan/VLAN_INTERFACE/VLAN_INTERFACE_IPPREFIX_LIST");
 	ret = gnmi_jsoni_get_alloc(main_switch, &gpath[0], &gbuf, 0,
 				   DEFAULT_TIMEOUT_US);
 	if (ret) {
@@ -3315,23 +3317,28 @@ int gnma_vlan_erif_attr_pref_list_get(uint16_t vid,
 		goto out;
 	}
 
-	item_arr = cJSON_GetObjectItemCaseSensitive(parsed, "sonic-vlan:VLAN_INTERFACE_LIST");
+	item_arr = cJSON_GetObjectItemCaseSensitive(parsed, "sonic-vlan:VLAN_INTERFACE_IPPREFIX_LIST");
 	if (!item_arr || !cJSON_IsArray(item_arr)) {
 		*list_size = 0;
 		goto out;
 	}
 
+	snprintf(vlan_name, sizeof(vlan_name), "Vlan%u", vid);
+
 	addr_num = 0;
 	cJSON_ArrayForEach(item_iter, item_arr) {
-		item = cJSON_GetObjectItemCaseSensitive(item_iter, "vlanid");
-		if (!item || !cJSON_IsNumber(item))
-			continue;
+		item = cJSON_GetObjectItemCaseSensitive(item_iter, "name");
+		if (!item || !cJSON_IsString(item))
+            		continue;
 
-		if ((int)cJSON_GetNumberValue(item) != vid)
-			continue;
+		vlan_name_str = cJSON_GetStringValue(item);
+
+		if (strcmp(vlan_name_str, vlan_name) != 0)
+            		continue;
 
 		item = cJSON_GetObjectItemCaseSensitive(item_iter, "ip-prefix");
 		addr_str = cJSON_GetStringValue(item);
+
 		if (!addr_str)
 			continue;
 
@@ -3444,17 +3451,24 @@ int gnma_vlan_erif_attr_pref_delete(uint16_t vid, struct gnma_ip_prefix *pref)
 {
 	char addrbuf[64];
 	char gpath[256];
+	  char vlan_name[32];
 
 	/* v6 is not supported for now */
+	GNMI_C_CONNECTOR_DEBUG_LOG("begin to delete attr");
 	if (pref->ip.v != AF_INET)
 		return GNMA_ERR_COMMON;
 
 	if (!inet_ntop(AF_INET, &pref->ip.u.v4, &addrbuf[0], sizeof(addrbuf)))
 		return GNMA_ERR_COMMON;
 
-	sprintf(&gpath[0], "/sonic-vlan:sonic-vlan/VLAN_INTERFACE/VLAN_INTERFACE_LIST[vlanid=%u][ip-prefix=%s/%d]",
-		vid, &addrbuf[0], pref->prefix_len);
+	snprintf(vlan_name, sizeof(vlan_name), "Vlan%u", vid);
 
+	snprintf(gpath, sizeof(gpath), "/sonic-vlan:sonic-vlan/VLAN_INTERFACE/VLAN_INTERFACE_IPPREFIX_LIST[name=%s][ip-prefix=%s/%d]", vlan_name, addrbuf, pref->prefix_len);
+
+	if (gnmi_jsoni_del(main_switch, gpath, DEFAULT_TIMEOUT_US))
+		return GNMA_ERR_COMMON;
+
+	snprintf(gpath, sizeof(gpath), "/sonic-vlan:sonic-vlan/VLAN_INTERFACE/VLAN_INTERFACE_LIST[name=%s]", vlan_name);
 	if (gnmi_jsoni_del(main_switch, gpath, DEFAULT_TIMEOUT_US))
 		return GNMA_ERR_COMMON;
 
