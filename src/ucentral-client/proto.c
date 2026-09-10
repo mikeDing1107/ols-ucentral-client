@@ -144,6 +144,7 @@ static int proto_port_speed_to_num(double val, uint32_t *speed)
 		{ .val = 5000, .speed = UCENTRAL_PORT_SPEED_5000_E },
 		{ .val = 10000, .speed = UCENTRAL_PORT_SPEED_10000_E },
 		{ .val = 25000, .speed = UCENTRAL_PORT_SPEED_25000_E },
+		{ .val = 50000, .speed = UCENTRAL_PORT_SPEED_50000_E },
 		{ .val = 100000, .speed = UCENTRAL_PORT_SPEED_100000_E }
 	};
 	size_t i;

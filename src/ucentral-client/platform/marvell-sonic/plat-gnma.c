@@ -119,8 +119,8 @@ plat_ieee8021x_system_auth_clients_get(uint16_t port_id,
 			case UCENTRAL_PORT_SPEED_25000_E:		\
 				strcpy(str, "25000");			\
 				break;					\
-			case UCENTRAL_PORT_SPEED_40000_E:		\
-				strcpy(str, "40000");			\
+			case UCENTRAL_PORT_SPEED_50000_E:		\
+				strcpy(str, "50000");			\
 				break;					\
 			case UCENTRAL_PORT_SPEED_100000_E:		\
 				strcpy(str, "100000");			\
