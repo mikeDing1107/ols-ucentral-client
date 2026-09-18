@@ -648,6 +648,8 @@ struct plat_system_info {
 	uint64_t ram_free;
 	uint64_t ram_total;
 	double load_average[3]; /* 1, 5, 15 minutes load average */
+	double temperature_avg;
+	double temperature_max;
 };
 
 struct plat_iee8021x_coa_counters {
