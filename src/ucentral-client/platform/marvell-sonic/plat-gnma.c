@@ -3498,6 +3498,46 @@ static int get_meminfo_cached_kib(uint64_t *cached)
 	return found ? 0 : 1;
 }
 
+static void get_thermal_temp(double *avg, double *max)
+{
+	double sum = 0.0, max_val = 0.0;
+        int count = 0;
+        char path[64];
+        FILE *f;
+        char *line = NULL;
+        size_t n = 0;
+
+	*avg = 0.0;
+	*max = 0.0;
+
+        for (int i = 0; i < 6; i++) {
+                snprintf(path, sizeof(path),
+                         "/sys/class/thermal/thermal_zone%d/temp", i);
+
+                f = fopen(path, "r");
+                if (!f)
+                        continue;
+
+		if (getline(&line, &n, f) > 0) {
+                        long raw = strtol(line, NULL, 10);
+			if (raw > 0) {
+				double temp = (double)raw / 1000.0;
+                                sum += temp;
+				if (temp > max_val)
+					max_val = temp;
+				count++;
+                        }
+                }
+                fclose(f);
+        }
+
+        free(line);
+	if (count > 0) {
+        	*avg = sum / (double)count;
+                *max = max_val;
+        }
+}
+
 static int plat_system_info_get(struct plat_system_info *info)
 {
 	uint64_t cached = 0;
@@ -3523,6 +3563,8 @@ static int plat_system_info_get(struct plat_system_info *info)
 		(sys_info.freeram + sys_info.freeswap) * sys_info.mem_unit;
 	info->ram_total = sys_info.totalram * sys_info.mem_unit;
 	memcpy(info->load_average, loadArray, sizeof info->load_average);
+
+	get_thermal_temp(&info->temperature_avg, &info->temperature_max);
 
 	return 0;
 }

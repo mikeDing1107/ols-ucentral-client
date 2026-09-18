@@ -3938,6 +3938,18 @@ static int state_fill_unit_data(cJSON *unit, struct plat_state_info *state)
 		goto err;
 	}
 
+	double temp_vals[2] = {
+        	state->system_info.temperature_avg,
+        	state->system_info.temperature_max
+    	};
+
+	cJSON *temp_arr = cJSON_CreateDoubleArray(temp_vals, 2);
+
+        if (!temp_arr || !cJSON_AddItemToObject(unit, "temperature", temp_arr)) {
+                cJSON_Delete(temp_arr);
+		goto err;
+	}
+
 	memory = cJSON_AddObjectToObject(unit, "memory");
 	if (!memory)
 		goto err;
