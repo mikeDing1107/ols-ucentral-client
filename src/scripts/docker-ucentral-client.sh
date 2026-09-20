@@ -65,6 +65,7 @@ start() {
 		echo "Creating new ${DOCKERNAME} container with HWSKU $HWSKU"
 		NET="host"
 		docker create  \
+			--log-opt max-size=2M --log-opt max-file=5 \
 			$(sonic-dockerlimits -sys ucentral_client) \
 			--net=$NET \
 			-e RUNTIME_OWNER=local \
