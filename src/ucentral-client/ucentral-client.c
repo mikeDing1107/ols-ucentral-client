@@ -32,6 +32,13 @@
 
 #include "est-client.h"
 
+#define CERT_CHECK_INTERVAL_US      (60 * 60 * LWS_US_PER_SEC)
+#define CERT_EXPIRY_THRESHOLD_PROD  (365L * 24 * 60 * 60)
+#define CERT_EXPIRY_THRESHOLD_DEMO  (3L * 24 * 60 * 60)
+
+static long g_cert_expiry_threshold = CERT_EXPIRY_THRESHOLD_PROD;
+static lws_sorted_usec_list_t cert_expiry_sul;
+
 struct per_vhost_data__minimal {
 	struct lws_context *context;
 	struct lws_vhost *vhost;
@@ -843,6 +850,149 @@ static int pki2_check_and_enroll(void)
 	return 0;
 }
 
+static int is_cert_expiring_soon(const char *path, long threshold_secs)
+{
+        FILE *fp = fopen(path, "rb");
+        if (!fp)
+                return -1;
+
+        X509 *cert = PEM_read_X509_AUX(fp, NULL, NULL, NULL);
+        fclose(fp);
+        if (!cert)
+                return -1;
+
+        struct tm tm_exp = {0};
+        int ok = ASN1_TIME_to_tm(X509_get_notAfter(cert), &tm_exp);
+        X509_free(cert);
+        if (ok != 1)
+                return -1;
+
+        time_t expiry = mktime(&tm_exp);
+        time_t now = time(NULL);
+
+        if (expiry <= 0)
+                return -1;
+
+        double days_left = difftime(expiry, now) / 86400.0;
+        UC_LOG_INFO("Cert expiry check: %.1f days remaining (threshold: %.1f days)\n",
+                    days_left, (double)threshold_secs / 86400.0);
+
+        return (expiry - now) < threshold_secs ? 1 : 0;
+}
+
+static void detect_certificate_type(void)
+{
+        const char *birth_cert = UCENTRAL_CONFIG "cert.pem";
+        FILE *fp;
+        X509 *cert = NULL;
+        X509_NAME *issuer_name = NULL;
+        char issuer_str[256] = {0};
+
+        fp = fopen(birth_cert, "rb");
+        if (!fp) {
+                UC_LOG_INFO("detect_certificate_type: cannot open %s, using default threshold\n", birth_cert);
+                return;
+        }
+
+        cert = PEM_read_X509_AUX(fp, NULL, NULL, NULL);
+        fclose(fp);
+        if (!cert) {
+                UC_LOG_ERR("detect_certificate_type: failed to parse %s\n", birth_cert);
+                return;
+        }
+
+        issuer_name = X509_get_issuer_name(cert);
+        if (issuer_name) {
+                X509_NAME_oneline(issuer_name, issuer_str, sizeof(issuer_str));
+        }
+        X509_free(cert);
+
+        if (strstr(issuer_str, "OpenLAN Demo Birth CA")) {
+                UC_LOG_INFO("Certificate type is \"Demo\"\n");
+                g_cert_expiry_threshold = CERT_EXPIRY_THRESHOLD_DEMO;
+        } else if (strstr(issuer_str, "OpenLAN Birth Issuing CA")) {
+                UC_LOG_INFO("Certificate type is \"Production\"\n");
+                g_cert_expiry_threshold = CERT_EXPIRY_THRESHOLD_PROD;
+        } else {
+                UC_LOG_INFO("Certificate type is \"TIP\"\n");
+                g_cert_expiry_threshold = CERT_EXPIRY_THRESHOLD_PROD;
+        }
+
+        UC_LOG_INFO("Certificate expiry threshold set to %ld seconds (%.1f days)\n",
+                    g_cert_expiry_threshold, (double)g_cert_expiry_threshold / 86400.0);
+}
+
+static void cert_expiry_timer_cb(struct lws_sorted_usec_list *sul)
+{
+        const char *op_cert = UCENTRAL_CONFIG "operational.pem";
+        struct stat st;
+
+	(void)sul;
+
+        if (stat(op_cert, &st) == 0) {
+                int need_renew = is_cert_expiring_soon(op_cert, g_cert_expiry_threshold);
+		if (need_renew < 0) {
+			UC_LOG_ERR("Auto-renewal: Failed to check cert expiry, will retry next interval\n");
+			goto reschedule;
+		}
+
+                if (need_renew == 1) {
+                        const char *birth_cert = UCENTRAL_CONFIG "cert.pem";
+                        const char *key_path = UCENTRAL_CONFIG "key.pem";
+                        const char *ca_bundle = UCENTRAL_CONFIG "cas.pem";
+                        const char *est_server;
+                        char *renewed_cert = NULL;
+                        FILE *fp;
+                        int ret;
+
+                        UC_LOG_INFO("Auto-renewal: Certificate expiring soon (threshold: %.1f days), triggering reenroll\n",
+                                    (double)g_cert_expiry_threshold / 86400.0);
+
+                        est_server = est_get_server_url(birth_cert);
+                        if (!est_server) {
+                                UC_LOG_ERR("Auto-renewal: Failed to detect EST server URL\n");
+                                goto reschedule;
+                        }
+
+                        UC_LOG_INFO("Auto-renewal: EST server: %s\n", est_server);
+
+                        ret = est_simple_reenroll(est_server, op_cert, key_path,
+                                                  ca_bundle, &renewed_cert);
+                        if (ret != EST_SUCCESS) {
+                                UC_LOG_ERR("Auto-renewal: EST reenrollment failed: %s\n", est_get_error());
+                                goto reschedule;
+                        }
+
+                        fp = fopen(op_cert, "w");
+                        if (!fp) {
+                                UC_LOG_ERR("Auto-renewal: Failed to open %s for writing\n", op_cert);
+                                free(renewed_cert);
+                                goto reschedule;
+                        }
+
+                        size_t cert_len = strlen(renewed_cert);
+                        if (fwrite(renewed_cert, 1, cert_len, fp) != cert_len) {
+                                UC_LOG_ERR("Auto-renewal: Failed to write renewed certificate\n");
+                                fclose(fp);
+                                free(renewed_cert);
+                                goto reschedule;
+                        }
+
+                        fclose(fp);
+                        free(renewed_cert);
+
+                        UC_LOG_INFO("Auto-renewal: Certificate renewed successfully, saved to %s\n", op_cert);
+			alarm(10);
+
+			UC_LOG_DBG("Reenroll OK\n");
+                }
+        }
+
+reschedule:
+        lws_sul_schedule(context, 0, &cert_expiry_sul,
+                         cert_expiry_timer_cb, CERT_CHECK_INTERVAL_US);
+}
+
 int main(void)
 {
 	int logs = LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_CLIENT;
@@ -912,6 +1062,8 @@ int main(void)
 
 	plat_revision_get(client.firmware, sizeof(client.firmware));
 
+	detect_certificate_type();
+
 	/* PKI 2.0: Check for operational certificate and enroll if needed */
 	if (pki2_check_and_enroll() != 0) {
 		UC_LOG_INFO("PKI 2.0: Enrollment failed, using birth certificate as fallback\n");
@@ -974,6 +1126,11 @@ int main(void)
 		goto exit;
 	}
 	sigthread_context_set(context);
+
+	lws_sul_schedule(context, 0, &cert_expiry_sul,
+                         cert_expiry_timer_cb, CERT_CHECK_INTERVAL_US);
+        UC_LOG_INFO("Certificate expiry auto-check scheduled (interval: 1h, threshold: %.1f days)\n",
+                    (double)g_cert_expiry_threshold / 86400.0);
 
 	password_len = sizeof(password);
 	if (get_updated_pass(password, &password_len))
