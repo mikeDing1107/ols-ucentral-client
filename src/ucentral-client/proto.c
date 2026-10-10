@@ -2530,6 +2530,36 @@ reenroll_handle(cJSON **rpc)
 }
 
 static void
+leds_handle(cJSON **rpc)
+{
+	cJSON *tb[__PARAMS_MAX] = {0};
+        double id = 0;
+
+        tb[PARAMS_SERIAL] =
+                cJSON_GetObjectItemCaseSensitive(rpc[JSONRPC_PARAMS], "serial");
+
+        if (rpc[JSONRPC_ID])
+                id = cJSON_GetNumberValue(rpc[JSONRPC_ID]);
+
+        if (!tb[PARAMS_SERIAL]) {
+                UC_LOG_ERR("blink message is missing parameters\n");
+                action_reply(1, "invalid parameters", 1, id);
+                return;
+        }
+
+	if (plat_led_control()) {
+                UC_LOG_ERR("blink failed\n");
+                action_reply(1, "blink failed", 1, id);
+                return;
+        }
+
+        action_reply(0, "Blink requested successfully", 0, id);
+        UC_LOG_DBG("Blink OK\n");
+
+	
+}
+
+static void
 factory_handle(cJSON **rpc)
 {
 	cJSON *tb[__PARAMS_MAX] = {0};
@@ -4373,6 +4403,8 @@ proto_handle_blob(struct blob *blob)
 			reenroll_handle(rpc);
 		else if (!strcmp(method, "factory"))
 			factory_handle(rpc);
+		else if (!strcmp(method, "leds"))
+                        leds_handle(rpc);
 		else if (!strcmp(method, "rtty"))
 			rtty_handle(rpc);
 		else if (!strcmp(method, "upgrade"))

@@ -34,6 +34,8 @@
 #include "openconfig_poe.grpc.pb.h"
 #include "factory_reset.grpc.pb.h"
 #include "factory_reset.pb.h"
+#include "led_control.grpc.pb.h"
+#include "led_control.pb.h"
 
 using namespace std::chrono_literals;
 using namespace std::chrono;
@@ -261,6 +263,7 @@ struct gnmi_session {
 	std::unique_ptr<gnoi::OpenconfigPoe::OpenconfigPoeService::Stub>
 		*stub_gnoi_openconfig_poe;
 	std::unique_ptr<gnoi::factory_reset::FactoryReset::Stub> *stub_gnoi_factory_reset;
+	std::unique_ptr<gnoi::led::LedControl::Stub> *stub_gnoi_led_control;
 	std::string *host;
 	std::string *username;
 	std::string *password;
@@ -291,6 +294,7 @@ struct gnmi_session *gnmi_session_create(char *host,
 	gs->stub_gnoi_openconfig_img_mgmt = new std::unique_ptr<gnoi::OpenconfigImageManagement::OpenconfigImageManagementService::Stub>();
 	gs->stub_gnoi_sonic_cfg_mgmt = new std::unique_ptr<gnoi::SonicConfigMgmt::SonicConfigMgmtService::Stub>();
 	gs->stub_gnoi_factory_reset = new std::unique_ptr<gnoi::factory_reset::FactoryReset::Stub>();
+	gs->stub_gnoi_led_control = new std::unique_ptr<gnoi::led::LedControl::Stub>();
 	gs->stub_gnoi_os = new std::unique_ptr<gnoi::os::OS::Stub>();
 	gs->stub_gnoi_sonic_alarm =
 		new std::unique_ptr<gnoi::SonicAlarm::SonicAlarmService::Stub>();
@@ -320,6 +324,8 @@ struct gnmi_session *gnmi_session_create(char *host,
 		grpc::CreateChannel(*gs->host, credentials));
 	*gs->stub_gnoi_factory_reset = gnoi::factory_reset::FactoryReset::NewStub(
         	grpc::CreateChannel(*gs->host, credentials));
+	*gs->stub_gnoi_led_control = gnoi::led::LedControl::NewStub(
+		grpc::CreateChannel(*gs->host, credentials));
 
 	return gs;
 }
@@ -703,6 +709,31 @@ int gnmi_gnoi_factory_reset_start(struct gnmi_session *gs, bool factory_os, int6
         }
 
         return 0;
+}
+
+int gnmi_gnoi_led_flash(struct gnmi_session *gs, int64_t timeout_us)
+{
+    grpc::Status status;
+    gnoi::led::FlashResponse gres;
+    gnoi::led::FlashRequest greq;
+
+    greq.set_led_id(2);
+    greq.set_color("yellow");
+    greq.set_mode("flash");
+
+    grpc::ClientContext context;
+    set_deadline_after_us(context, timeout_us);
+
+    status = (*gs->stub_gnoi_led_control)->Flash(&context, greq, &gres);
+
+    if (!status.ok()) {
+        GNMI_C_CONNECTOR_DEBUG_LOG("LedControl.Flash Request failed");
+        GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+        main_log_cb(status.error_message().c_str());
+        return -1;
+    }
+
+    return 0;
 }
 
 int gnmi_gnoi_system_reboot(struct gnmi_session *gs, int64_t timeout_us)
