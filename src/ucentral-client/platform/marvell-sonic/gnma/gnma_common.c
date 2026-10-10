@@ -2547,6 +2547,17 @@ err_gnmi_get:
 	return ret;
 }
 
+int gnma_led_control(void)
+{
+	int ret;
+	ret = gnmi_gnoi_led_flash(main_switch, DEFAULT_TIMEOUT_US);
+	if (ret) {
+                return GNMA_ERR_COMMON;
+        }
+
+	return 0;
+}
+
 /* SAI_? */
 int gnma_factory_default(void)
 {

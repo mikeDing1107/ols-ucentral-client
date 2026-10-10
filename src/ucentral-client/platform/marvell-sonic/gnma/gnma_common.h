@@ -397,6 +397,7 @@ int gnma_config_save(void);
 int gnma_config_restore(void);
 int gnma_port_list_get(uint16_t *list_size, struct gnma_port_key *port_key_list);
 int gnma_factory_default(void);
+int gnma_led_control(void);
 int gnma_image_install(char *uri);
 int gnma_image_install_status(uint16_t *buf_size, char *buf);
 int gnma_image_running_name_get(char *str, size_t str_max_len);
