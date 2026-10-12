@@ -747,6 +747,9 @@ int plat_saved_config_id_get(uint64_t *id);
 void plat_config_destroy(struct plat_cfg *cfg);
 int plat_factory_default(void);
 int plat_led_control(void);
+int plat_led_online(void);
+int plat_led_offline(void);
+int plat_led_onboarding(void);
 int plat_rtty(struct plat_rtty_cfg *rtty_cfg);
 int plat_upgrade(char *uri, char *signature);
 

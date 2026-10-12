@@ -2459,6 +2459,27 @@ int plat_saved_config_id_get(uint64_t *id)
 	return __plat_config_id_load(id);
 }
 
+int plat_led_online(void)
+{
+	int ret = -1;
+	ret = gnma_led_online();
+	return ret;
+}
+
+int plat_led_offline(void)
+{
+	int ret = -1;
+	ret = gnma_led_offline();
+	return ret;
+}
+
+int plat_led_onboarding(void)
+{
+	int ret = -1;
+        ret = gnma_led_onboarding();
+	return ret;
+}
+
 int plat_led_control(void)
 {
 	int ret = -1;

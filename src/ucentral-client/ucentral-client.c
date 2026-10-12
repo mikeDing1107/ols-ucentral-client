@@ -441,6 +441,7 @@ callback_broker(struct lws *wsi, enum lws_callback_reasons reason,
 		return 0;
 
 	case LWS_CALLBACK_CLIENT_ESTABLISHED:
+		plat_led_online();
 		set_conn_time();
 		websocket = wsi;
 		connect_send();
@@ -467,6 +468,7 @@ callback_broker(struct lws *wsi, enum lws_callback_reasons reason,
 	/* fall through */
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		UC_LOG_INFO("connection closed\n");
+		plat_led_offline();
 		/* WA for parser issue */
 		/* uc_json_parser_uninit(&parser); */
 		websocket = NULL;
@@ -1059,6 +1061,8 @@ int main(void)
 	if (plat_init()) {
 		UC_LOG_CRIT("Platform initialization failed");
 	}
+
+	plat_led_onboarding();
 
 	plat_revision_get(client.firmware, sizeof(client.firmware));
 

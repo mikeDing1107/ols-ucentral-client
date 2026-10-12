@@ -2547,6 +2547,39 @@ err_gnmi_get:
 	return ret;
 }
 
+int gnma_led_online(void)
+{
+	int ret;
+        ret = gnmi_gnoi_led_online(main_switch, DEFAULT_TIMEOUT_US);
+        if (ret) {
+                return GNMA_ERR_COMMON;
+        }
+
+        return 0;
+}
+
+int gnma_led_offline(void)
+{
+	int ret;
+	ret = gnmi_gnoi_led_offline(main_switch, DEFAULT_TIMEOUT_US);
+        if (ret) {
+                return GNMA_ERR_COMMON;
+        }
+
+        return 0;
+}
+
+int gnma_led_onboarding(void)
+{
+        int ret;
+        ret = gnmi_gnoi_led_onboarding(main_switch, DEFAULT_TIMEOUT_US);
+        if (ret) {
+                return GNMA_ERR_COMMON;
+        }
+
+        return 0;
+}
+
 int gnma_led_control(void)
 {
 	int ret;
