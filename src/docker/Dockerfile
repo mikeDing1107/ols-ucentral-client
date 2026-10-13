@@ -23,6 +23,8 @@ COPY /lib* /usr/local/lib/
 
 COPY /version.jso[n] /etc/
 COPY /schema.jso[n] /etc/
+COPY /ucentral-client.versio[n] /etc/ucentral-client.version
+COPY /buildtim[e] /etc/buildtime
 RUN ldconfig
 RUN ls -l /usr/local/bin/ucentral-client
 

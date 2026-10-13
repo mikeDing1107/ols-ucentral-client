@@ -7,6 +7,20 @@ IMG_ID := "ucentral-client-build-env"
 IMG_TAG := $(shell cat Dockerfile | sha1sum | awk '{print substr($$1,0,11);}')
 CONTAINER_NAME := "ucentral_client_build_env"
 
+# ---------------------------------------------------------------------------
+# ucentral version derivation (mirrors SONiC sonic_get_version() logic):
+# version file + docker tag are based on the REMOTE branch head commit at
+# build time; fall back to the local HEAD commit if the remote is unavailable.
+# ---------------------------------------------------------------------------
+UCENTRAL_BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
+UCENTRAL_REMOTE := $(shell git remote 2>/dev/null | head -n1)
+UCENTRAL_COMMIT := $(shell timeout 10 git ls-remote --heads $(UCENTRAL_REMOTE) $(UCENTRAL_BRANCH) 2>/dev/null | cut -c1-7)
+ifeq ($(strip $(UCENTRAL_COMMIT)),)
+UCENTRAL_COMMIT := $(shell git rev-parse --short=7 HEAD 2>/dev/null || echo unknown)
+endif
+UCENTRAL_VERSION := $(UCENTRAL_BRANCH).$(UCENTRAL_COMMIT)
+BUILD_TIME := $(shell date +%Y%m%dT%H%M%S)
+
 .PHONY: all clean build-host-env build-final-deb build-ucentral-docker-img run-host-env run-ucentral-docker-img
 
 all: build-host-env build-ucentral-app build-ucentral-docker-img build-final-deb
@@ -58,6 +72,9 @@ build-ucentral-app: run-host-env
 	if [ -f version.json ]; then \
 	    cp version.json src/docker/; \
 	fi
+	# embed ucentral source version + build time into the runtime image
+	printf '%s\n' "$(UCENTRAL_VERSION)" > src/docker/ucentral-client.version
+	printf '%s\n' "$(BUILD_TIME)" > src/docker/buildtime
 
 build-ucentral-docker-img: build-ucentral-app
 	pushd src
@@ -70,7 +87,9 @@ build-ucentral-docker-img: build-ucentral-app
 	if [ -n "$$OLDIMG" ] && [ ! "$$OLDIMG" = "$$NEWIMG" ]; then \
 		docker image rm $$OLDIMG; \
 	fi
-	docker save ucentral-client:latest |gzip -c -  > docker-ucentral-client.gz
+	# extra tag with the ucentral source commit (runtime still uses :latest)
+	docker tag ucentral-client:latest ucentral-client:$(UCENTRAL_COMMIT)
+	docker save ucentral-client:latest ucentral-client:$(UCENTRAL_COMMIT) |gzip -c -  > docker-ucentral-client.gz
 	popd
 
 build-final-deb: build-ucentral-docker-img
@@ -98,6 +117,8 @@ clean:
 	rm -rf src/docker/lib* || true;
 	rm -rf src/docker/ucentral-client || true;
 	rm -rf src/docker/version.json || true;
+	rm -rf src/docker/ucentral-client.version || true;
+	rm -rf src/docker/buildtime || true;
 	rm -rf src/docker/schema.json || true;
 	rm -rf src/debian/ucentral-client.substvars 2>/dev/null || true;
 	rm -rf src/debian/shasta-ucentral-client.debhelper.log 2>/dev/null || true;
