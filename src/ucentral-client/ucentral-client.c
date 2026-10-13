@@ -39,6 +39,9 @@
 static long g_cert_expiry_threshold = CERT_EXPIRY_THRESHOLD_PROD;
 static lws_sorted_usec_list_t cert_expiry_sul;
 
+static volatile sig_atomic_t led_pending_online = 0;
+static volatile sig_atomic_t led_pending_offline = 0;
+
 struct per_vhost_data__minimal {
 	struct lws_context *context;
 	struct lws_vhost *vhost;
@@ -441,6 +444,7 @@ callback_broker(struct lws *wsi, enum lws_callback_reasons reason,
 		return 0;
 
 	case LWS_CALLBACK_CLIENT_ESTABLISHED:
+		led_pending_online = 1;
 		set_conn_time();
 		websocket = wsi;
 		connect_send();
@@ -467,6 +471,7 @@ callback_broker(struct lws *wsi, enum lws_callback_reasons reason,
 	/* fall through */
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		UC_LOG_INFO("connection closed\n");
+		led_pending_offline = 1;
 		/* WA for parser issue */
 		/* uc_json_parser_uninit(&parser); */
 		websocket = NULL;
@@ -1058,7 +1063,10 @@ int main(void)
 
 	if (plat_init()) {
 		UC_LOG_CRIT("Platform initialization failed");
+		exit(EXIT_FAILURE);
 	}
+
+	plat_led_onboarding();
 
 	plat_revision_get(client.firmware, sizeof(client.firmware));
 
@@ -1140,6 +1148,16 @@ int main(void)
 
 	while (!uc_loop_interrupted_get()) {
 		lws_service_tsi(context, 0, 0);
+
+		if (led_pending_online) {
+			led_pending_online = 0;
+			plat_led_online();
+		}
+
+		if (led_pending_offline) {
+			led_pending_offline = 0;
+			plat_led_offline();
+		}
 
 		if (conn_successfull) {
 			if (password_len) {

@@ -711,6 +711,81 @@ int gnmi_gnoi_factory_reset_start(struct gnmi_session *gs, bool factory_os, int6
         return 0;
 }
 
+int gnmi_gnoi_led_online(struct gnmi_session *gs, int64_t timeout_us)
+{
+    grpc::Status status;
+    gnoi::led::FlashResponse gres;
+    gnoi::led::FlashRequest greq;
+
+    greq.set_led_id(2);
+    greq.set_color("green");
+    greq.set_mode("stable");
+
+    grpc::ClientContext context;
+    set_deadline_after_us(context, timeout_us);
+
+    status = (*gs->stub_gnoi_led_control)->Flash(&context, greq, &gres);
+
+    if (!status.ok()) {
+        GNMI_C_CONNECTOR_DEBUG_LOG("LedControl.Online Request failed");
+        GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+        main_log_cb(status.error_message().c_str());
+        return -1;
+    }
+
+    return 0;
+}
+
+int gnmi_gnoi_led_offline(struct gnmi_session *gs, int64_t timeout_us)
+{
+    grpc::Status status;
+    gnoi::led::FlashResponse gres;
+    gnoi::led::FlashRequest greq;
+
+    greq.set_led_id(2);
+    greq.set_color("yellow");
+    greq.set_mode("stable");
+
+    grpc::ClientContext context;
+    set_deadline_after_us(context, timeout_us);
+
+    status = (*gs->stub_gnoi_led_control)->Flash(&context, greq, &gres);
+
+    if (!status.ok()) {
+        GNMI_C_CONNECTOR_DEBUG_LOG("LedControl.Offline Request failed");
+        GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+        main_log_cb(status.error_message().c_str());
+        return -1;
+    }
+
+    return 0;
+}
+
+int gnmi_gnoi_led_onboarding(struct gnmi_session *gs, int64_t timeout_us)
+{
+    grpc::Status status;
+    gnoi::led::FlashResponse gres;
+    gnoi::led::FlashRequest greq;
+
+    greq.set_led_id(2);
+    greq.set_color("yellow");
+    greq.set_mode("stable");
+
+    grpc::ClientContext context;
+    set_deadline_after_us(context, timeout_us);
+
+    status = (*gs->stub_gnoi_led_control)->Flash(&context, greq, &gres);
+
+    if (!status.ok()) {
+        GNMI_C_CONNECTOR_DEBUG_LOG("LedControl.Onboarding Request failed");
+        GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+        main_log_cb(status.error_message().c_str());
+        return -1;
+    }
+
+    return 0;
+}
+
 int gnmi_gnoi_led_flash(struct gnmi_session *gs, int64_t timeout_us)
 {
     grpc::Status status;

@@ -2547,7 +2547,7 @@ leds_handle(cJSON **rpc)
                 return;
         }
 
-	if (plat_led_control()) {
+	if (plat_led_flash()) {
                 UC_LOG_ERR("blink failed\n");
                 action_reply(1, "blink failed", 1, id);
                 return;

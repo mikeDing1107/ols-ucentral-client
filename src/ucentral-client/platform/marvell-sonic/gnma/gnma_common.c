@@ -19,6 +19,7 @@
 #include <errno.h>
 
 #define DEFAULT_TIMEOUT_US 90 * 1000000
+#define LED_TIMEOUT_US  (2 * 1000000)
 
 #define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
 #define ZFREE(p)           \
@@ -2547,10 +2548,43 @@ err_gnmi_get:
 	return ret;
 }
 
-int gnma_led_control(void)
+int gnma_led_online(void)
 {
 	int ret;
-	ret = gnmi_gnoi_led_flash(main_switch, DEFAULT_TIMEOUT_US);
+        ret = gnmi_gnoi_led_online(main_switch, LED_TIMEOUT_US);
+        if (ret) {
+                return GNMA_ERR_COMMON;
+        }
+
+        return 0;
+}
+
+int gnma_led_offline(void)
+{
+	int ret;
+	ret = gnmi_gnoi_led_offline(main_switch, LED_TIMEOUT_US);
+        if (ret) {
+                return GNMA_ERR_COMMON;
+        }
+
+        return 0;
+}
+
+int gnma_led_onboarding(void)
+{
+        int ret;
+        ret = gnmi_gnoi_led_onboarding(main_switch, LED_TIMEOUT_US);
+        if (ret) {
+                return GNMA_ERR_COMMON;
+        }
+
+        return 0;
+}
+
+int gnma_led_flash(void)
+{
+	int ret;
+	ret = gnmi_gnoi_led_flash(main_switch, LED_TIMEOUT_US);
 	if (ret) {
                 return GNMA_ERR_COMMON;
         }
