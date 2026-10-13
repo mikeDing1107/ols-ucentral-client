@@ -87,9 +87,9 @@ build-ucentral-docker-img: build-ucentral-app
 	if [ -n "$$OLDIMG" ] && [ ! "$$OLDIMG" = "$$NEWIMG" ]; then \
 		docker image rm $$OLDIMG; \
 	fi
-	# extra tag with the ucentral source commit (runtime still uses :latest)
-	docker tag ucentral-client:latest ucentral-client:$(UCENTRAL_COMMIT)
-	docker save ucentral-client:latest ucentral-client:$(UCENTRAL_COMMIT) |gzip -c -  > docker-ucentral-client.gz
+	# extra tag with the ucentral source version <branch>.<commit> (runtime still uses :latest)
+	docker tag ucentral-client:latest ucentral-client:$(UCENTRAL_VERSION)
+	docker save ucentral-client:latest ucentral-client:$(UCENTRAL_VERSION) |gzip -c -  > docker-ucentral-client.gz
 	popd
 
 build-final-deb: build-ucentral-docker-img
