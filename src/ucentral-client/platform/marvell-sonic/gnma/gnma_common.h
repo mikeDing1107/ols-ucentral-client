@@ -397,7 +397,7 @@ int gnma_config_save(void);
 int gnma_config_restore(void);
 int gnma_port_list_get(uint16_t *list_size, struct gnma_port_key *port_key_list);
 int gnma_factory_default(void);
-int gnma_led_control(void);
+int gnma_led_flash(void);
 int gnma_led_online(void);
 int gnma_led_offline(void);
 int gnma_led_onboarding(void);

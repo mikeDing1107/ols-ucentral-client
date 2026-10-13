@@ -2480,10 +2480,10 @@ int plat_led_onboarding(void)
 	return ret;
 }
 
-int plat_led_control(void)
+int plat_led_flash(void)
 {
 	int ret = -1;
-	ret = gnma_led_control();
+	ret = gnma_led_flash();
  	return ret;
 }
 
