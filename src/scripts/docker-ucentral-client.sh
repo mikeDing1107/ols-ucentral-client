@@ -121,7 +121,8 @@ remove() {
     if [ $? -eq 0 ]; then
         docker rm -f ${DOCKERNAME}
     fi
-    docker images -a | grep "ucentral-client" | awk '{print $3}' | xargs docker rmi
+    # remove by repo:tag (not image ID) - the image may carry multiple tags (latest + <branch>.<commit>)
+    docker images -a | grep "^ucentral-client " | awk '{print $1":"$2}' | xargs -r docker rmi
 }
 
 
