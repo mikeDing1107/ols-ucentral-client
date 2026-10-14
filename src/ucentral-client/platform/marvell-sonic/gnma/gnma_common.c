@@ -2493,7 +2493,7 @@ int gnma_port_list_get(uint16_t *list_size, struct gnma_port_key *port_key_list)
 		goto err_gnmi_get;
 	}
 
-	GNMI_C_CONNECTOR_DEBUG_LOG("DEBUG: RAW buf content: [%s]\n", buf);
+	//GNMI_C_CONNECTOR_DEBUG_LOG("DEBUG: RAW buf content: [%s]\n", buf);
 	parsed_res = cJSON_Parse(buf);
 	ZFREE(buf);
 	if (!parsed_res) {
