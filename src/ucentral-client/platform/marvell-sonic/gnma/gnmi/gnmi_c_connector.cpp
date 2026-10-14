@@ -496,9 +496,9 @@ static int gnmi_jsoni_get_internal(struct gnmi_session *gs, const char *path,
 #endif
 
 	if (!status.ok()) {
-		GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
-		GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
-		GNMI_C_CONNECTOR_DEBUG_LOG("Error Message: %s", status.error_message().c_str());
+		//GNMI_C_CONNECTOR_DEBUG_LOG("Request failed");
+		//GNMI_C_CONNECTOR_DEBUG_LOG("Code: %d", status.error_code());
+		//GNMI_C_CONNECTOR_DEBUG_LOG("Error Message: %s", status.error_message().c_str());
 		main_log_cb(status.error_message().c_str());
 		return -1;
 	}
