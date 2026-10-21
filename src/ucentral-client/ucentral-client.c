@@ -1126,6 +1126,14 @@ int main(void)
 	info.protocols = protocols;
 	info.fd_limit_per_thread = 1 + 1 + 1;
         info.connect_timeout_secs = 30;
+        /* Fast offline detection via TCP keepalive.
+         * Without keepalive a dead link (e.g. cable unplug) is only detected by
+         * TCP retransmission timeout (measured ~5min, worst case 15-30min),
+         * which is too slow for the status LED / AC state.
+         * Detection latency = ka_time + ka_probes * ka_interval = 4 + 3*2 = 10s */
+        info.ka_time = 4;
+        info.ka_probes = 3;
+        info.ka_interval = 2;
 
 	set_conn_time();
 	context = lws_create_context(&info);
