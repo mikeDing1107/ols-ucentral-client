@@ -31,9 +31,6 @@ override_dh_install:
 	cp scripts/docker-ucentral-client.sh ${INSTALL}/usr/local/bin/
 	cp scripts/export_ucentral_config.py ${INSTALL}/usr/local/bin/
 	cp docker-ucentral-client.gz  ${INSTALL}/usr/local/lib
-	# Install Vlan1 in-band management configuration
-	mkdir -p ${INSTALL}/etc/network/interfaces.d/
-	cp configs/interfaces.Vlan1 ${INSTALL}/etc/network/interfaces.d/
 	# Install config_db.json.j2 template that will be handled by
 	# initialization hook 10-render-config-db-json from config-setup service
 	mkdir -p ${INSTALL}/usr/share/broadcom_sonic/config_profiles/l3/templates
