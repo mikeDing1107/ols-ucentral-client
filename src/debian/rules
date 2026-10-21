@@ -30,14 +30,6 @@ override_dh_install:
 	cp scripts/ucentral-client.sh ${INSTALL}/usr/local/bin/
 	cp scripts/docker-ucentral-client.sh ${INSTALL}/usr/local/bin/
 	cp scripts/export_ucentral_config.py ${INSTALL}/usr/local/bin/
-	# TMP W/A script untill SONIC img POE issues are fixed;
-	# we can't use /usr/local/lib or any other, as it's root-owned;
-	# we can't launch sonic-cli under root, so to make it all simple - copy
-	# script to /home/admin folder and launch sonic-cli with script from
-	# home folder.
-	mkdir -p ${INSTALL}/home/admin
-	cp scripts/OLS_NOS_fixups.script ${INSTALL}/usr/local/lib
-	cp scripts/OLS_NOS_upgrade_override.script ${INSTALL}/usr/local/lib
 	cp docker-ucentral-client.gz  ${INSTALL}/usr/local/lib
 	# Install Vlan1 in-band management configuration
 	mkdir -p ${INSTALL}/etc/network/interfaces.d/

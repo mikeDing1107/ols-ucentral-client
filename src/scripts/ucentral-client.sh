@@ -64,9 +64,6 @@ start() {
         fi
     fi
 
-    cp /usr/local/lib/OLS_NOS_fixups.script /home/admin/OLS_NOS_fixups.script
-    cp /usr/local/lib/OLS_NOS_upgrade_override.script /home/admin/OLS_NOS_upgrade_override.script
-
     if [ $(systemctl is-active config-setup.service) == "active" ]; then
         # do nothing on service restart
         return
@@ -100,21 +97,6 @@ wait() {
     # ports in it.
     # while ! ls /sys/class/net/Vlan* &>/dev/null; do sleep 1; done
 
-    # Detect first boot on this version
-    # Run upgrade overrides before fixups
-    conf_upgrade_md5sum=$(md5sum /home/admin/OLS_NOS_upgrade_override.script | cut -d ' ' -f1)
-    if test "$conf_upgrade_md5sum" != "$(test -f /var/lib/ucentral/upgrade-override.md5sum && cat /var/lib/ucentral/upgrade-override.md5sum)"; then
-	    sudo -u admin -- bash "sonic-cli" "/home/admin/OLS_NOS_upgrade_override.script"
-	    echo -n "$conf_upgrade_md5sum" >/var/lib/ucentral/upgrade-override.md5sum
-    fi
-
-    sudo touch /etc/default/in-band-dhcp
-
-    # Temporary NTP fixup / WA: configure a list of default NTP servers.
-    # Should mature into a default-config option to make sure board has right
-    # time upon any boot (especially first time).
-    sudo -u admin -- bash "sonic-cli" "/home/admin/OLS_NOS_fixups.script"
-
     # Mount the uCentral volume for client CA certificate
     # is now handled by provision_birth_certs() above.
 
@@ -140,17 +122,6 @@ wait() {
     # should be accessible.
     # This also means, that we won't start up untill this URI is accessible.
     # while ! curl clientauth.one.digicert.com &>/dev/null; do sleep 1; done
-
-    # Enable DHCP trusting for uplink (Vlan1) iface
-    # It's needed to forward DHCP Discover (and replies) from/to DHCP server
-    # of (untrusted) port clients (EthernetX) of the same Vlan (Vlan1).
-    # Without this fix underlying Vlan members wouldn't be able to receive
-    # DHCP-lease IP
-    trusted_dhcp_if=`sudo -u admin -- bash "sonic-cli" "-c" "show ip arp" | grep -Eo "Ethernet[0-9]+"`
-    sudo -u admin -- "echo" "configure terminal" > /home/admin/fixup_scr.script
-    sudo -u admin -- "echo" "interface $trusted_dhcp_if" >> /home/admin/fixup_scr.script
-    sudo -u admin -- "echo" "ip dhcp snooping trust" >> /home/admin/fixup_scr.script
-    sudo -u admin -- bash "sonic-cli" "/home/admin/fixup_scr.script"
 
     # change admin password
     # NOTE: This could lead to access escalation, if you got image from running device

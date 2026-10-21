@@ -1,2 +1,0 @@
-configure terminal
-no ip vrf mgmt
