@@ -3,6 +3,13 @@
 pipe="/var/lib/ucentral/upgrade_pipe"
 logs_f="/var/lib/ucentral/logs"
 
+# Keep a single daemon instance. ucentral-client.sh wait() spawns one via
+# systemd-run on every service (re)start; without this guard the old
+# instances accumulate and multiple readers race on the same FIFO during
+# a partial upgrade. Extra instances exit immediately.
+exec 9>/var/lib/ucentral/partialupdate.lock
+flock -n 9 || exit 0
+
 function upgrade()
 {
   local file="$1"
