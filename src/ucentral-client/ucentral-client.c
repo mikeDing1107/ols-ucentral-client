@@ -1042,8 +1042,12 @@ int main(void)
 	sigthread_create(); /* move signal handling to a dedicated thread */
 
 	openlog("ucentral-client", LOG_CONS | LOG_NDELAY | LOG_PERROR, LOG_DAEMON);
-	/* TODO for now always enable debug syslog */
-	syslogs |= LOG_MASK(LOG_DEBUG);
+	/* Debug syslog is off by default: unconditional LOG_DEBUG used to
+	 * dump full TX/state JSON into syslog (~13MB/day on KaiTian).
+	 * Enable on demand by setting UC_LOG_DEBUG=1 (e.g. in the container
+	 * environment). */
+	if (getenv("UC_LOG_DEBUG"))
+		syslogs |= LOG_MASK(LOG_DEBUG);
 	setlogmask(syslogs);
 
 	curl_global_init(CURL_GLOBAL_DEFAULT);
