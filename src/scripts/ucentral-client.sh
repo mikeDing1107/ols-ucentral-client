@@ -127,10 +127,16 @@ wait() {
     # NOTE: This could lead to access escalation, if you got image from running device
     if ! test -f /var/lib/ucentral/admin-cred.changed; then
 	    #ADMIN_PASSWD=`openssl rand -hex 10`
-	    ADMIN_PASSWD=broadcom
-	    # Save password
+	    # Default admin password reported to the controller via
+	    # deviceupdate currentPassword; keep in sync with the container
+	    # rtty login credentials (see src/docker/Dockerfile).
+	    ADMIN_PASSWD=admin
+	    # Save password (reported to controller via deviceupdate currentPassword)
 	    echo -n $ADMIN_PASSWD >/var/lib/ucentral/admin-cred.buf
-	    sudo -u admin sonic-cli -c "configure" -c "username admin password $ADMIN_PASSWD role admin"
+	    # Disabled: ucentral used to change the SONiC 'admin' login password
+	    # via sonic-cli here. The SONiC host login account is managed
+	    # elsewhere; kept for reference.
+	    #sudo -u admin sonic-cli -c "configure" -c "username admin password $ADMIN_PASSWD role admin"
 	    touch /var/lib/ucentral/admin-cred.changed
     fi
 

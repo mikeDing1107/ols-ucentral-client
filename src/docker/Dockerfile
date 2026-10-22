@@ -15,7 +15,9 @@ RUN ln -s /bin/busybox /usr/local/bin/nslookup
 RUN ln -s /bin/busybox /usr/local/bin/traceroute
 
 RUN useradd -ms /bin/bash admin
-RUN echo 'admin:broadcom' | chpasswd
+# rtty terminal login credential (container admin account); keep in sync
+# with ADMIN_PASSWD in ucentral-client.sh.
+RUN echo 'admin:admin' | chpasswd
 
 COPY /ucentral-client /usr/local/bin/ucentral-client
 COPY /rtty /usr/local/bin/
