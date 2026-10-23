@@ -687,13 +687,14 @@ gnma_port_stats_type_to_string(gnma_port_stat_type_t counter_id)
 
 int gnma_port_oper_status_get(struct gnma_port_key *port_key, bool *is_up)
 {
-	cJSON *parsed_res, *oper;
+	cJSON *parsed_res;
 	char *buf = NULL;
 	char *gpath;
 	int ret;
+	const char *status_str;
 
 	ret = asprintf(&gpath,
-		       "/openconfig-interfaces:interfaces/interface[name=%s]/state/admin-status",
+		       "/sonic-db:STATE_DB/localhost/PORT_TABLE/%s/netdev_oper_status",
 		       port_key->name);
 	if (ret == -1) {
 		ret = GNMA_ERR_COMMON;
@@ -714,11 +715,18 @@ int gnma_port_oper_status_get(struct gnma_port_key *port_key, bool *is_up)
 		goto err_gnmi_parse;
 	}
 
-	oper = cJSON_GetObjectItemCaseSensitive(parsed_res, "openconfig-interfaces:admin-status");
-	if (!oper || !cJSON_GetStringValue(oper))
+	if (!cJSON_IsString(parsed_res)) {
+		ret = GNMA_ERR_COMMON;
 		goto err_gnmi_get_obj;
+	}
 
-	*is_up = (strcmp(cJSON_GetStringValue(oper), "UP") == 0);
+	status_str = cJSON_GetStringValue(parsed_res);
+	if (!status_str) {
+		ret = GNMA_ERR_COMMON;
+		goto err_gnmi_get_obj;
+	}
+
+	*is_up = (strcasecmp(status_str, "up") == 0);
 
 err_gnmi_get_obj:
 	cJSON_Delete(parsed_res);
