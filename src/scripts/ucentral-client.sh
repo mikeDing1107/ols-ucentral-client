@@ -5,7 +5,7 @@ echo "uCentral Client"
 provision_birth_certs()
 {
     local cert_dir=/host/ucentral-certs
-    local required="cas.pem cert.pem key.pem"
+    local required="key.pem"
     local missing=0
     local tmpmnt
     local msg
